@@ -3,14 +3,9 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const supabase = createClient();
@@ -30,24 +25,6 @@ export default function LoginPage() {
     }
   }
 
-  async function handleMagicLink(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      setError(error.message);
-    } else {
-      setMagicLinkSent(true);
-    }
-    setLoading(false);
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 p-8">
@@ -58,53 +35,17 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {magicLinkSent ? (
-          <div className="rounded-lg border bg-card p-4 text-center space-y-1">
-            <p className="font-medium">Link enviado!</p>
-            <p className="text-sm text-muted-foreground">
-              Verifique o e-mail <strong>{email}</strong> e clique no link para
-              entrar.
-            </p>
-          </div>
-        ) : (
-          <>
-            <Button
-              className="w-full"
-              variant="outline"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-            >
-              <GoogleIcon className="mr-2 h-4 w-4" />
-              Entrar com Google
-            </Button>
+        <Button
+          className="w-full"
+          variant="outline"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+        >
+          <GoogleIcon className="mr-2 h-4 w-4" />
+          {loading ? "Redirecionando..." : "Entrar com Google"}
+        </Button>
 
-            <div className="flex items-center gap-3">
-              <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">ou</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <form onSubmit={handleMagicLink} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Enviando..." : "Entrar com e-mail"}
-              </Button>
-            </form>
-          </>
-        )}
+        {error && <p className="text-sm text-destructive text-center">{error}</p>}
       </div>
     </div>
   );

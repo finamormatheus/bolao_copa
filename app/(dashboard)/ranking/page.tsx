@@ -49,20 +49,26 @@ export default async function RankingPage({
     .select("id, display_name, avatar_url, email")
     .in("email", groupEmails.length > 0 ? groupEmails : [""]);
 
-  const groupUserIds = profiles?.map((p) => p.id) ?? [];
+  const profileByEmail = Object.fromEntries(
+    (profiles ?? []).map((p) => [p.email, p])
+  );
+
+  const groupUserIds = (profiles ?? []).map((p) => p.id);
 
   const { data: scores } = await supabase
     .from("game_scores")
     .select("user_id, total_points, breakdown")
     .in("user_id", groupUserIds.length > 0 ? groupUserIds : [""]);
 
-  // Inicializa todos os membros com 0 pts para que apareçam mesmo sem jogos pontuados
+  // Inicializa todos os membros do grupo, com ou sem perfil criado
   const rankingMap: Record<string, RankingRow> = {};
-  for (const profile of profiles ?? []) {
-    rankingMap[profile.id] = {
-      user_id: profile.id,
-      display_name: profile.display_name ?? "Usuário",
-      avatar_url: profile.avatar_url ?? null,
+  for (const member of groupMembers ?? []) {
+    const profile = profileByEmail[member.email];
+    const key = profile?.id ?? member.email;
+    rankingMap[key] = {
+      user_id: key,
+      display_name: profile?.display_name ?? member.email.split("@")[0],
+      avatar_url: profile?.avatar_url ?? null,
       total_points: 0,
       games_played: 0,
       exact_scores: 0,

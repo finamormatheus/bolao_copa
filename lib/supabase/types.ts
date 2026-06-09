@@ -14,21 +14,71 @@ export interface Database {
           id: string;
           display_name: string;
           avatar_url: string | null;
+          email: string | null;
           created_at: string;
         };
         Insert: {
           id: string;
           display_name: string;
           avatar_url?: string | null;
+          email?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           display_name?: string;
           avatar_url?: string | null;
+          email?: string | null;
           created_at?: string;
         };
         Relationships: [];
+      };
+      groups: {
+        Row: {
+          id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      group_members: {
+        Row: {
+          id: string;
+          group_id: string;
+          email: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          group_id: string;
+          email: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          group_id?: string;
+          email?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       games: {
         Row: {
@@ -220,3 +270,5 @@ export type Game = Database["public"]["Tables"]["games"]["Row"];
 export type Odds = Database["public"]["Tables"]["odds"]["Row"];
 export type Prediction = Database["public"]["Tables"]["predictions"]["Row"];
 export type GameScore = Database["public"]["Tables"]["game_scores"]["Row"];
+export type Group = Database["public"]["Tables"]["groups"]["Row"];
+export type GroupMember = Database["public"]["Tables"]["group_members"]["Row"];

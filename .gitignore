@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# dados privados (emails dos participantes)
+supabase/seed_groups.sql

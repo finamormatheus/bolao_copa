@@ -9,8 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-
-export const revalidate = 30;
+import { GroupSelector } from "./GroupSelector";
 
 interface RankingRow {
   user_id: string;
@@ -21,36 +20,57 @@ interface RankingRow {
   exact_scores: number;
 }
 
-export default async function RankingPage() {
+export default async function RankingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ group?: string }>;
+}) {
   const supabase = await createClient();
+  const { group: groupParam } = await searchParams;
 
-  // Agrega pontuação total por usuário
-  const { data: scores } = await supabase
-    .from("game_scores")
-    .select("user_id, total_points, breakdown");
+  // Todos os grupos do usuário (RLS limita aos seus grupos)
+  const { data: userGroups } = await supabase
+    .from("groups")
+    .select("id, name")
+    .order("name");
+
+  const selectedGroupId = groupParam ?? userGroups?.[0]?.id ?? "";
+
+  // Membros do grupo selecionado
+  const { data: groupMembers } = await supabase
+    .from("group_members")
+    .select("email")
+    .eq("group_id", selectedGroupId);
+
+  const groupEmails = groupMembers?.map((m) => m.email) ?? [];
 
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url");
+    .select("id, display_name, avatar_url, email")
+    .in("email", groupEmails.length > 0 ? groupEmails : [""]);
 
-  const profileMap = Object.fromEntries(
-    (profiles ?? []).map((p) => [p.id, p])
-  );
+  const groupUserIds = profiles?.map((p) => p.id) ?? [];
 
-  // Agrupa por usuário
+  const { data: scores } = await supabase
+    .from("game_scores")
+    .select("user_id, total_points, breakdown")
+    .in("user_id", groupUserIds.length > 0 ? groupUserIds : [""]);
+
+  // Inicializa todos os membros com 0 pts para que apareçam mesmo sem jogos pontuados
   const rankingMap: Record<string, RankingRow> = {};
+  for (const profile of profiles ?? []) {
+    rankingMap[profile.id] = {
+      user_id: profile.id,
+      display_name: profile.display_name ?? "Usuário",
+      avatar_url: profile.avatar_url ?? null,
+      total_points: 0,
+      games_played: 0,
+      exact_scores: 0,
+    };
+  }
+
   for (const score of scores ?? []) {
-    if (!rankingMap[score.user_id]) {
-      const profile = profileMap[score.user_id];
-      rankingMap[score.user_id] = {
-        user_id: score.user_id,
-        display_name: profile?.display_name ?? "Usuário",
-        avatar_url: profile?.avatar_url ?? null,
-        total_points: 0,
-        games_played: 0,
-        exact_scores: 0,
-      };
-    }
+    if (!rankingMap[score.user_id]) continue;
     rankingMap[score.user_id].total_points += score.total_points ?? 0;
     rankingMap[score.user_id].games_played += 1;
     const breakdown = score.breakdown as { exact?: boolean } | null;
@@ -65,10 +85,13 @@ export default async function RankingPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Ranking</h1>
 
+      {userGroups && userGroups.length > 1 && (
+        <GroupSelector groups={userGroups} selectedGroupId={selectedGroupId} />
+      )}
+
       {ranking.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
-          <p>Nenhum palpite pontuado ainda.</p>
-          <p className="text-sm mt-1">O ranking aparece após o primeiro jogo encerrado.</p>
+          <p>Nenhum participante encontrado neste grupo.</p>
         </div>
       ) : (
         <Table>
@@ -109,7 +132,7 @@ export default async function RankingPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">
-                    {row.games_played}
+                    {row.games_played > 0 ? row.games_played : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell className="text-right">
                     {row.exact_scores > 0 ? (

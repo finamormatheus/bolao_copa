@@ -1,0 +1,19 @@
+name: Update Odds
+
+on:
+  schedule:
+    # A cada 3 horas
+    - cron: "0 */3 * * *"
+  workflow_dispatch: # Permite disparar manualmente
+
+jobs:
+  update-odds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call update-odds endpoint
+        run: |
+          curl -s -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/update-odds" \
+            | tee /tmp/response.json
+          cat /tmp/response.json

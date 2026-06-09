@@ -1,0 +1,19 @@
+name: Sync Results
+
+on:
+  schedule:
+    # A cada 5 minutos durante a Copa (Jun–Jul 2026)
+    - cron: "*/5 * * 6,7 *"
+  workflow_dispatch:
+
+jobs:
+  sync-results:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync-results endpoint
+        run: |
+          curl -s -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/sync-results" \
+            | tee /tmp/response.json
+          cat /tmp/response.json

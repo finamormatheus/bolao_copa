@@ -1,0 +1,19 @@
+name: Sync Fixtures
+
+on:
+  schedule:
+    # Uma vez por dia às 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync-fixtures endpoint
+        run: |
+          curl -s -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/sync-fixtures" \
+            | tee /tmp/response.json
+          cat /tmp/response.json

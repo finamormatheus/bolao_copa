@@ -90,6 +90,12 @@ export default async function DashboardLayout({
               >
                 Ranking
               </Link>
+              <Link
+                href="/regras"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Regras
+              </Link>
             </nav>
           </div>
 

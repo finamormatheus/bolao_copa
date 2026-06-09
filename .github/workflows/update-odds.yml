@@ -2,9 +2,15 @@ name: Update Odds
 
 on:
   schedule:
-    # A cada 3 horas
-    - cron: "0 */3 * * *"
-  workflow_dispatch: # Permite disparar manualmente
+    # A cada 30 minutos durante a Copa (Jun–Jul 2026)
+    # A rota só chama The Odds API quando há jogo na janela de 24h ou 1h antes
+    - cron: "*/30 * * 6,7 *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '"initial" faz uma carga de todos os jogos futuros (1 req). Deixe em branco para modo agendado.'
+        required: false
+        default: ""
 
 jobs:
   update-odds:
@@ -12,8 +18,11 @@ jobs:
     steps:
       - name: Call update-odds endpoint
         run: |
+          MODE="${{ github.event.inputs.mode }}"
+          URL="${{ secrets.APP_URL }}/api/cron/update-odds"
+          if [ -n "$MODE" ]; then URL="${URL}?mode=${MODE}"; fi
           curl -s -f \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.APP_URL }}/api/cron/update-odds" \
+            "$URL" \
             | tee /tmp/response.json
           cat /tmp/response.json

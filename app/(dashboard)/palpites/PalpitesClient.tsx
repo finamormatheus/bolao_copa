@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import GameCard from "@/components/GameCard";
-import type { Game, Odds, Prediction, GameScore } from "@/lib/supabase/types";
+import ChampionPicker from "@/components/ChampionPicker";
+import type { Game, Odds, Prediction, GameScore, ChampionPick } from "@/lib/supabase/types";
 
 interface Props {
   userId: string;
@@ -11,6 +12,9 @@ interface Props {
   odds: Odds[];
   predictions: Prediction[];
   scores: GameScore[];
+  championPick: ChampionPick | null;
+  championLocked: boolean;
+  teams: string[];
 }
 
 export default function PalpitesClient({
@@ -19,6 +23,9 @@ export default function PalpitesClient({
   odds,
   predictions: initialPredictions,
   scores,
+  championPick,
+  championLocked,
+  teams,
 }: Props) {
   const [predictions, setPredictions] = useState<Prediction[]>(initialPredictions);
   const supabase = createClient();
@@ -50,7 +57,11 @@ export default function PalpitesClient({
       .select()
       .single();
 
-    if (!error && data) {
+    if (error) {
+      console.error("Erro ao salvar palpite:", error);
+      throw new Error(error.message);
+    }
+    if (data) {
       setPredictions((prev) => {
         const without = prev.filter((p) => p.game_id !== gameId);
         return [...without, data];
@@ -70,6 +81,13 @@ export default function PalpitesClient({
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Meus Palpites</h1>
+      {teams.length > 0 && (
+        <ChampionPicker
+          teams={teams}
+          initialPick={championPick}
+          locked={championLocked}
+        />
+      )}
       {Object.entries(grouped).map(([date, dateGames]) => (
         <section key={date} className="space-y-3">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { fetchMatchesByDate, oddsToProbs, mapStatus } from "@/lib/api-football/client";
+import {
+  fetchWorldCupOdds,
+  averageH2HOdds,
+  normalizeTeamName,
+} from "@/lib/the-odds-api/client";
+import { oddsToProbs } from "@/lib/api-football/client";
 import { createServiceClient } from "@/lib/supabase/service";
 
 function isAuthorized(request: Request): boolean {
@@ -8,74 +13,146 @@ function isAuthorized(request: Request): boolean {
   return auth === `Bearer ${process.env.CRON_SECRET}`;
 }
 
-const LOCK_WINDOW_MINUTES = 5;
+// Janelas de agendamento (em horas)
+const WINDOW_24H = { minH: 22, maxH: 26 };
+const WINDOW_1H = { minMin: 30, maxMin: 90 };
+
+type GameRow = { id: string; home_team: string; away_team: string; match_date: string };
+
+async function updateOddsForGames(
+  games: GameRow[],
+  supabase: ReturnType<typeof import("@/lib/supabase/service").createServiceClient>,
+  now: Date,
+  debug = false
+) {
+  if (games.length === 0) return { updated: 0, unmatched: [] };
+
+  // Uma única chamada à The Odds API para todos os jogos qualificados
+  const events = await fetchWorldCupOdds();
+
+  const eventIndex = new Map<string, (typeof events)[number]>();
+  for (const ev of events) {
+    const key = `${normalizeTeamName(ev.home_team)}|${normalizeTeamName(ev.away_team)}`;
+    eventIndex.set(key, ev);
+  }
+
+  let updated = 0;
+  const unmatched: string[] = [];
+
+  for (const game of games) {
+    const key = `${normalizeTeamName(game.home_team)}|${normalizeTeamName(game.away_team)}`;
+    const event = eventIndex.get(key);
+    if (!event) {
+      if (debug) unmatched.push(`DB: "${game.home_team}" vs "${game.away_team}"`);
+      continue;
+    }
+
+    const rawOdds = averageH2HOdds(event);
+    if (!rawOdds) continue;
+
+    const probs = oddsToProbs(rawOdds.homeOdd, rawOdds.drawOdd, rawOdds.awayOdd);
+
+    await supabase.from("odds").upsert(
+      {
+        game_id: game.id,
+        home_win_prob: probs.home,
+        draw_prob: probs.draw,
+        away_win_prob: probs.away,
+        updated_at: now.toISOString(),
+      },
+      { onConflict: "game_id" }
+    );
+    updated++;
+  }
+  return { updated, unmatched };
+}
 
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const mode = searchParams.get("mode"); // "initial" | null (scheduled)
+
   try {
     const supabase = createServiceClient();
-    const today = new Date().toISOString().split("T")[0];
     const now = new Date();
 
-    const matches = await fetchMatchesByDate(today);
+    // ── Modo inicial: busca odds de todos os jogos futuros de uma vez ──────────
+    if (mode === "initial") {
+      const { data: allGames } = await supabase
+        .from("games")
+        .select("id, home_team, away_team, match_date")
+        .eq("status", "NS")
+        .gt("match_date", now.toISOString());
 
-    if (matches.length === 0) {
-      return NextResponse.json({ message: "No matches today", updated: 0, locked: 0 });
+      const games = allGames ?? [];
+      const debug = searchParams.get("debug") === "1";
+      const { updated, unmatched } = await updateOddsForGames(games, supabase, now, debug);
+      const response: Record<string, unknown> = { message: "Initial odds loaded", updated };
+      if (debug) response.unmatched = unmatched;
+      return NextResponse.json(response);
     }
 
-    let updated = 0;
-    let locked = 0;
+    // ── Modo agendado: verifica janelas de 24h e 1h ────────────────────────────
+    const in24hFrom = new Date(now.getTime() + WINDOW_24H.minH * 3600 * 1000);
+    const in24hTo = new Date(now.getTime() + WINDOW_24H.maxH * 3600 * 1000);
+    const in1hFrom = new Date(now.getTime() + WINDOW_1H.minMin * 60 * 1000);
+    const in1hTo = new Date(now.getTime() + WINDOW_1H.maxMin * 60 * 1000);
 
-    for (const m of matches) {
-      if (!m.odds?.homeWin || !m.odds?.draw || !m.odds?.awayWin) continue;
-
-      const probs = oddsToProbs(m.odds.homeWin, m.odds.draw, m.odds.awayWin);
-
-      const { data: game } = await supabase
+    const [{ data: needs24h }, { data: needs1h }] = await Promise.all([
+      supabase
         .from("games")
-        .select("id, match_date, locked_home_win_prob")
-        .eq("api_id", m.id)
-        .single();
+        .select("id, home_team, away_team, match_date")
+        .eq("status", "NS")
+        .eq("odds_fetched_24h", false)
+        .gte("match_date", in24hFrom.toISOString())
+        .lte("match_date", in24hTo.toISOString()),
+      supabase
+        .from("games")
+        .select("id, home_team, away_team, match_date")
+        .eq("status", "NS")
+        .eq("odds_fetched_1h", false)
+        .gte("match_date", in1hFrom.toISOString())
+        .lte("match_date", in1hTo.toISOString()),
+    ]);
 
-      if (!game) continue;
+    if (!needs24h?.length && !needs1h?.length) {
+      return NextResponse.json({ message: "No odds updates needed", updated: 0 });
+    }
 
-      // Atualiza status e placar também aproveita a chamada
-      await supabase.from("games").update({ status: mapStatus(m.status) }).eq("id", game.id);
-
-      // Upsert odds atuais
-      await supabase.from("odds").upsert(
-        {
-          game_id: game.id,
-          home_win_prob: probs.home,
-          draw_prob: probs.draw,
-          away_win_prob: probs.away,
-          updated_at: now.toISOString(),
-        },
-        { onConflict: "game_id" }
-      );
-      updated++;
-
-      // Lock odds se jogo começa em < LOCK_WINDOW_MINUTES e ainda não foi travado
-      const minutesUntilGame =
-        (new Date(game.match_date).getTime() - now.getTime()) / 60000;
-
-      if (minutesUntilGame <= LOCK_WINDOW_MINUTES && !game.locked_home_win_prob) {
-        await supabase
-          .from("games")
-          .update({
-            locked_home_win_prob: probs.home,
-            locked_draw_prob: probs.draw,
-            locked_away_win_prob: probs.away,
-          })
-          .eq("id", game.id);
-        locked++;
+    // Deduplica jogos (um jogo pode estar nas duas janelas se a cron atrasou)
+    const seenIds = new Set<string>();
+    const allGames: GameRow[] = [];
+    for (const g of [...(needs24h ?? []), ...(needs1h ?? [])]) {
+      if (!seenIds.has(g.id)) {
+        seenIds.add(g.id);
+        allGames.push(g);
       }
     }
 
-    return NextResponse.json({ message: "Odds updated", updated, locked });
+    const { updated } = await updateOddsForGames(allGames, supabase, now);
+
+    // Marca flags nos jogos atualizados
+    if (needs24h?.length) {
+      await supabase
+        .from("games")
+        .update({ odds_fetched_24h: true })
+        .in("id", needs24h.map((g) => g.id));
+    }
+    if (needs1h?.length) {
+      await supabase
+        .from("games")
+        .update({ odds_fetched_1h: true })
+        .in("id", needs1h.map((g) => g.id));
+    }
+
+    return NextResponse.json({
+      message: "Odds updated",
+      updated,
+      windows: { "24h": needs24h?.length ?? 0, "1h": needs1h?.length ?? 0 },
+    });
   } catch (err) {
     console.error("[update-odds]", err);
     return NextResponse.json(

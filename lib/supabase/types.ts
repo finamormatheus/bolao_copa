@@ -97,6 +97,8 @@ export interface Database {
           locked_home_win_prob: number | null;
           locked_draw_prob: number | null;
           locked_away_win_prob: number | null;
+          odds_fetched_24h: boolean;
+          odds_fetched_1h: boolean;
           updated_at: string;
         };
         Insert: {
@@ -115,6 +117,8 @@ export interface Database {
           locked_home_win_prob?: number | null;
           locked_draw_prob?: number | null;
           locked_away_win_prob?: number | null;
+          odds_fetched_24h?: boolean;
+          odds_fetched_1h?: boolean;
           updated_at?: string;
         };
         Update: {
@@ -133,6 +137,8 @@ export interface Database {
           locked_home_win_prob?: number | null;
           locked_draw_prob?: number | null;
           locked_away_win_prob?: number | null;
+          odds_fetched_24h?: boolean;
+          odds_fetched_1h?: boolean;
           updated_at?: string;
         };
         Relationships: [];
@@ -249,6 +255,36 @@ export interface Database {
           }
         ];
       };
+      champion_picks: {
+        Row: {
+          id: string;
+          user_id: string;
+          team_name: string;
+          points_awarded: number;
+          calculated_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          team_name: string;
+          points_awarded?: number;
+          calculated_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          team_name?: string;
+          points_awarded?: number;
+          calculated_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -272,3 +308,4 @@ export type Prediction = Database["public"]["Tables"]["predictions"]["Row"];
 export type GameScore = Database["public"]["Tables"]["game_scores"]["Row"];
 export type Group = Database["public"]["Tables"]["groups"]["Row"];
 export type GroupMember = Database["public"]["Tables"]["group_members"]["Row"];
+export type ChampionPick = Database["public"]["Tables"]["champion_picks"]["Row"];

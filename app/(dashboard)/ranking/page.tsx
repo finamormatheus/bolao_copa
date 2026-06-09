@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { toSlug } from "./group-slug";
 import {
   Table,
   TableBody,
@@ -18,6 +19,8 @@ interface RankingRow {
   total_points: number;
   games_played: number;
   exact_scores: number;
+  champion_pts: number;
+  champion_team: string | null;
 }
 
 export default async function RankingPage({
@@ -34,7 +37,9 @@ export default async function RankingPage({
     .select("id, name")
     .order("name");
 
-  const selectedGroupId = groupParam ?? userGroups?.[0]?.id ?? "";
+  const selectedGroupId = groupParam
+    ? (userGroups?.find((g) => toSlug(g.name) === groupParam)?.id ?? userGroups?.[0]?.id ?? "")
+    : (userGroups?.[0]?.id ?? "");
 
   // Membros do grupo selecionado
   const { data: groupMembers } = await supabase
@@ -55,10 +60,20 @@ export default async function RankingPage({
 
   const groupUserIds = (profiles ?? []).map((p) => p.id);
 
-  const { data: scores } = await supabase
-    .from("game_scores")
-    .select("user_id, total_points, breakdown")
-    .in("user_id", groupUserIds.length > 0 ? groupUserIds : [""]);
+  const [{ data: scores }, { data: championPicksData }] = await Promise.all([
+    supabase
+      .from("game_scores")
+      .select("user_id, total_points, breakdown")
+      .in("user_id", groupUserIds.length > 0 ? groupUserIds : [""]),
+    supabase
+      .from("champion_picks")
+      .select("user_id, team_name, points_awarded")
+      .in("user_id", groupUserIds.length > 0 ? groupUserIds : [""]),
+  ]);
+
+  const championByUserId = Object.fromEntries(
+    (championPicksData ?? []).map((cp) => [cp.user_id, cp])
+  );
 
   // Inicializa todos os membros do grupo, com ou sem perfil criado
   const rankingMap: Record<string, RankingRow> = {};
@@ -72,6 +87,8 @@ export default async function RankingPage({
       total_points: 0,
       games_played: 0,
       exact_scores: 0,
+      champion_pts: 0,
+      champion_team: null,
     };
   }
 
@@ -81,6 +98,13 @@ export default async function RankingPage({
     rankingMap[score.user_id].games_played += 1;
     const breakdown = score.breakdown as { exact?: boolean } | null;
     if (breakdown?.exact) rankingMap[score.user_id].exact_scores += 1;
+  }
+
+  for (const [userId, cp] of Object.entries(championByUserId)) {
+    if (!rankingMap[userId]) continue;
+    rankingMap[userId].champion_pts = cp.points_awarded ?? 0;
+    rankingMap[userId].champion_team = cp.team_name ?? null;
+    rankingMap[userId].total_points += cp.points_awarded ?? 0;
   }
 
   const ranking = Object.values(rankingMap).sort(
@@ -107,6 +131,7 @@ export default async function RankingPage({
               <TableHead>Participante</TableHead>
               <TableHead className="text-right">Jogos</TableHead>
               <TableHead className="text-right">Acertos exatos</TableHead>
+              <TableHead className="text-right">Campeão</TableHead>
               <TableHead className="text-right font-bold">Pontos</TableHead>
             </TableRow>
           </TableHeader>
@@ -145,6 +170,21 @@ export default async function RankingPage({
                       <Badge variant="outline" className="text-xs">
                         ⚽ {row.exact_scores}
                       </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {row.champion_team ? (
+                      <span className="text-xs text-muted-foreground">
+                        {row.champion_pts > 0 ? (
+                          <Badge variant="outline" className="text-xs text-amber-600 border-amber-400">
+                            🏆 {row.champion_team}
+                          </Badge>
+                        ) : (
+                          row.champion_team
+                        )}
+                      </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

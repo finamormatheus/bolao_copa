@@ -214,3 +214,65 @@
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Header — single row on desktop, two rows on mobile */
+.hdr-inner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  padding: 0 18px;
+  min-height: 60px;
+}
+.hdr-nav  { display: flex; align-items: center; gap: 4px; }
+.hdr-user { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+
+@media (max-width: 560px) {
+  .hdr-inner { padding: 9px 16px; row-gap: 10px; column-gap: 12px; }
+  .hdr-brand { order: 1; }
+  .hdr-user  { order: 2; }
+  .hdr-nav   { order: 3; flex-basis: 100%; gap: 6px; }
+  .hdr-nav a { flex: 1; text-align: center; }
+}
+
+/* Team side — flag + name; stacks & wraps on mobile */
+.team-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.team-side.right { flex-direction: row-reverse; }
+.team-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--bolao-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.team-side.left  .team-name { text-align: left; }
+.team-side.right .team-name { text-align: right; }
+
+@media (max-width: 560px) {
+  .team-side,
+  .team-side.right {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+  /* 3-class specificity matches the base .team-side.left/right .team-name rules so centering wins */
+  .team-side.left  .team-name,
+  .team-side.right .team-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 12.5px;
+    line-height: 1.12;
+    text-align: center;
+    text-wrap: balance;
+  }
+}

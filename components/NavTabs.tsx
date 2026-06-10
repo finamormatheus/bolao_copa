@@ -12,7 +12,7 @@ const TABS = [
 export default function NavTabs() {
   const pathname = usePathname();
   return (
-    <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <nav className="hdr-nav">
       {TABS.map(({ href, label }) => {
         const active = pathname.startsWith(href);
         return (

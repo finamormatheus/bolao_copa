@@ -14,6 +14,24 @@ const GROUP_COLORS: Record<string, string> = {
   J: "rgb(0,120,136)", K: "rgb(255,61,0)", L: "rgb(33,150,243)",
 };
 
+const STAGE_PT: Record<string, string> = {
+  "Group Stage":    "Fase de Grupos",
+  "last_32":        "Rodada de 32",
+  "LAST_32":        "Rodada de 32",
+  "last_16":        "Oitavas de Final",
+  "LAST_16":        "Oitavas de Final",
+  "Round of 16":    "Oitavas de Final",
+  "Quarter-finals": "Quartas de Final",
+  "Semi-finals":    "Semifinal",
+  "3rd Place":      "3º Lugar",
+  "Final":          "Final",
+};
+
+function translateStage(stage: string | null): string | null {
+  if (!stage) return null;
+  return STAGE_PT[stage] ?? stage;
+}
+
 function groupLetter(groupName: string | null): string | null {
   if (!groupName) return null;
   const m = groupName.match(/\b([A-L])\b/i);
@@ -22,7 +40,7 @@ function groupLetter(groupName: string | null): string | null {
 
 function fmtTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString("pt-BR", {
-    hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo",
+    hour: "2-digit", minute: "2-digit",
   });
 }
 
@@ -161,17 +179,12 @@ function ScorePillStatic({ value, live, dim }: { value: number | null; live?: bo
 function TeamSide({ name, logoUrl, align }: { name: string; logoUrl: string | null; align: "left" | "right" }) {
   const right = align === "right";
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1,
-      flexDirection: right ? "row-reverse" : "row",
-    }}>
+    <div className={`team-side ${right ? "right" : "left"}`}>
       <FlagChip teamName={name} logoUrl={logoUrl} />
-      <span style={{
+      <span className="team-name" style={{
         fontFamily: '"FWC2026", system-ui, sans-serif',
-        fontWeight: 700, fontSize: 16, letterSpacing: "0.01em",
+        letterSpacing: "0.01em",
         textTransform: "uppercase", color: "var(--bolao-ink)",
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        textAlign: right ? "right" : "left",
       }}>
         {name}
       </span>
@@ -409,7 +422,7 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
                 fontSize: 12.5, color: "var(--bolao-ink-dim)",
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 fontFamily: '"Noto Sans", system-ui, sans-serif',
-              }}>{game.stage}</span>
+              }}>{translateStage(game.stage)}</span>
             </>
           )}
         </div>
@@ -418,6 +431,7 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
           {isFinished && <StatusChip kind="final" />}
           {!showActual && withinLock && <StatusChip kind="locked" />}
           {group && <GroupBadge group={group} />}
+
         </div>
       </div>
 

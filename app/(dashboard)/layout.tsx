@@ -49,43 +49,31 @@ export default async function DashboardLayout({
       WebkitBackdropFilter: "blur(12px)",
       borderBottom: "1px solid var(--bolao-hairline)",
     }}>
-      <div style={{
-        maxWidth: 760,
-        margin: "0 auto",
-        padding: "0 18px",
-        height: 60,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-      }}>
-        {/* Left: wordmark + nav */}
-        <div style={{ display: "flex", alignItems: "center", gap: 22, minWidth: 0 }}>
+      <div className="hdr-inner" style={{ maxWidth: 760, margin: "0 auto" }}>
+        <span className="hdr-brand" style={{
+          fontFamily: '"FWC2026", system-ui, sans-serif',
+          fontSize: 19,
+          fontWeight: 800,
+          letterSpacing: "-0.01em",
+          whiteSpace: "nowrap",
+          textTransform: "uppercase",
+          display: "inline-flex",
+          alignItems: "baseline",
+          gap: 7,
+          color: "var(--bolao-ink)",
+        }}>
+          Bolão{" "}
           <span style={{
-            fontFamily: '"FWC2026", system-ui, sans-serif',
-            fontSize: 19,
-            fontWeight: 800,
-            letterSpacing: "-0.01em",
-            whiteSpace: "nowrap",
-            textTransform: "uppercase",
-            display: "inline-flex",
-            alignItems: "baseline",
-            gap: 7,
-            color: "var(--bolao-ink)",
-          }}>
-            Bolão{" "}
-            <span style={{
-              color: "var(--bolao-lime)",
-              fontFamily: '"FIFA26 Logo", "FWC2026", system-ui, sans-serif',
-              fontSize: 24,
-              lineHeight: 0.8,
-            }}>26</span>
-          </span>
-          <NavTabs />
-        </div>
+            color: "var(--bolao-lime)",
+            fontFamily: '"FIFA26 Logo", "FWC2026", system-ui, sans-serif',
+            fontSize: 24,
+            lineHeight: 0.8,
+          }}>26</span>
+        </span>
 
-        {/* Right: first name + avatar initial + logout */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
+        <NavTabs />
+
+        <div className="hdr-user">
           <span style={{
             fontSize: 13,
             color: "var(--bolao-ink-dim)",

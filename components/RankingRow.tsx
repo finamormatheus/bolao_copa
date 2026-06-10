@@ -42,6 +42,25 @@ function Delta({ delta }: { delta: number | null }) {
   );
 }
 
+function ExactBadge({ exact }: { exact: number }) {
+  if (!exact) return <span style={{ color: "var(--bolao-ink-faint)", fontSize: 13 }}>—</span>;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      background: "var(--bolao-lime-soft)",
+      color: "var(--bolao-lime)",
+      border: "1px solid rgba(173,235,3,0.30)",
+      borderRadius: 999, padding: "3px 9px 2px",
+      fontSize: 12, fontWeight: 800, letterSpacing: "0.02em",
+      fontFamily: '"FWC2026", system-ui, sans-serif',
+      textTransform: "uppercase",
+      fontVariantNumeric: "tabular-nums",
+    }}>
+      <span style={{ fontSize: 11 }}>🎯</span>{exact}
+    </span>
+  );
+}
+
 export function RankingListHeader() {
   return (
     <div style={{
@@ -55,13 +74,14 @@ export function RankingListHeader() {
         color: "var(--bolao-ink-faint)",
         fontFamily: '"Noto Sans", system-ui, sans-serif',
       }}>Participante</span>
-      <span style={{
+      <span className="hide-sm" style={{
         width: 54, textAlign: "center", fontSize: 10, fontWeight: 700,
         letterSpacing: "0.06em", textTransform: "uppercase",
         color: "var(--bolao-ink-faint)",
         fontFamily: '"Noto Sans", system-ui, sans-serif',
-      }} className="hidden sm:block">Cravadas</span>
+      }}>Cravadas</span>
       <span
+        className="hide-sm"
         title="Variação de posição a cada dia de jogo"
         style={{
           width: 34, textAlign: "center", fontSize: 10, fontWeight: 700,
@@ -114,38 +134,27 @@ export function RankingRow({ row, rank, isCurrentUser }: {
           fontFamily: '"FWC2026", system-ui, sans-serif',
           display: "inline-flex", alignItems: "center", justifyContent: "center",
         }}>{initials(row.display_name)}</span>
-        <div style={{
-          flex: 1, minWidth: 0,
-          fontSize: 15, fontWeight: 700, letterSpacing: "0.01em",
-          fontFamily: '"FWC2026", system-ui, sans-serif',
-          textTransform: "uppercase",
-          color: "var(--bolao-ink)",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>{row.display_name}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            className="rank-name"
+            style={{ color: isCurrentUser ? "var(--bolao-lime)" : "var(--bolao-ink)" }}
+          >{row.display_name}</div>
+          {/* mobile-only: cravadas + variação collapse under the name so nothing crowds the points */}
+          <div className="rank-meta">
+            <ExactBadge exact={exact} />
+            <span className="rank-meta-sep" />
+            <Delta delta={row.delta} />
+          </div>
+        </div>
       </div>
 
-      {/* Cravadas — hidden on small screens */}
-      <span style={{ width: 54, display: "flex", justifyContent: "center", flexShrink: 0 }} className="hidden sm:flex">
-        {exact > 0 ? (
-          <span style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            background: "var(--bolao-lime-soft)",
-            color: "var(--bolao-lime)",
-            border: "1px solid rgba(173,235,3,0.30)",
-            borderRadius: 999, padding: "3px 9px 2px",
-            fontSize: 12, fontWeight: 800, letterSpacing: "0.02em",
-            fontFamily: '"FWC2026", system-ui, sans-serif',
-            textTransform: "uppercase",
-            fontVariantNumeric: "tabular-nums",
-          }}>
-            <span style={{ fontSize: 11 }}>🎯</span>{exact}
-          </span>
-        ) : (
-          <span style={{ color: "var(--bolao-ink-faint)", fontSize: 13 }}>—</span>
-        )}
+      {/* Cravadas — hidden on phones (≤480px), visible above */}
+      <span className="hide-sm" style={{ width: 54, display: "flex", justifyContent: "center", flexShrink: 0 }}>
+        <ExactBadge exact={exact} />
       </span>
 
-      <span style={{ width: 34, display: "flex", justifyContent: "center", flexShrink: 0, marginRight: 8 }}>
+      {/* Variação — hidden on phones (≤480px), visible above */}
+      <span className="hide-sm" style={{ width: 34, display: "flex", justifyContent: "center", flexShrink: 0, marginRight: 8 }}>
         <Delta delta={row.delta} />
       </span>
 

@@ -90,7 +90,8 @@ function PodiumColumn({ row, rank, isCurrentUser }: {
         textAlign: "center",
         maxWidth: "100%", overflow: "hidden",
         display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-        wordBreak: "break-word", lineHeight: 1.2,
+        wordBreak: "normal", overflowWrap: "break-word", lineHeight: 1.12,
+        minHeight: `${Math.round((isFirst ? 15 : 13.5) * 1.12 * 2)}px`,
       }}>{row.display_name}</div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 2 }}>

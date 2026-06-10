@@ -14,7 +14,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Bolão 2026",
-  description: "Bolão da Copa do Mundo 2026",
+  description: "Faça seus palpites, dispute com os amigos e acompanhe o ranking da Copa do Mundo 2026.",
+  openGraph: {
+    title: "Bolão 2026",
+    description: "Faça seus palpites, dispute com os amigos e acompanhe o ranking da Copa do Mundo 2026.",
+    siteName: "Bolão 2026",
+    locale: "pt_BR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

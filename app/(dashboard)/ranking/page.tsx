@@ -66,12 +66,12 @@ export default async function RankingPage({
   ]);
 
   // ranking_snapshots is not yet in the generated types; cast to any until types are regenerated
-  const { data: snapshots } = await (supabase as any)
+  const { data: snapshots } = (await (supabase as any)
     .from("ranking_snapshots")
     .select("user_id, rank, game_day")
     .eq("group_id", selectedGroupId)
     .lt("game_day", today)
-    .order("game_day", { ascending: false }) as Promise<{ data: Array<{ user_id: string; rank: number; game_day: string }> | null }>;
+    .order("game_day", { ascending: false })) as { data: Array<{ user_id: string; rank: number; game_day: string }> | null };
 
 
   const championByUserId = Object.fromEntries(

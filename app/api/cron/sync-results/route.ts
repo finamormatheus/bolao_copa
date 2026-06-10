@@ -3,6 +3,63 @@ import { fetchLiveMatches, fetchMatchesByDate, mapStatus } from "@/lib/api-footb
 import { createServiceClient } from "@/lib/supabase/service";
 import { calculateScore } from "@/lib/scoring/calculator";
 
+async function saveRankingSnapshots(
+  supabase: ReturnType<typeof createServiceClient>,
+  gameDay: string
+) {
+  const { data: groups } = await supabase.from("groups").select("id");
+  if (!groups?.length) return;
+
+  for (const group of groups) {
+    const { data: members } = await supabase
+      .from("group_members")
+      .select("email")
+      .eq("group_id", group.id);
+
+    if (!members?.length) continue;
+
+    const emails = members.map((m) => m.email);
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id")
+      .in("email", emails);
+
+    if (!profiles?.length) continue;
+
+    const userIds = profiles.map((p) => p.id);
+
+    const [{ data: gameScores }, { data: championPicks }] = await Promise.all([
+      supabase.from("game_scores").select("user_id, total_points").in("user_id", userIds),
+      supabase.from("champion_picks").select("user_id, points_awarded").in("user_id", userIds),
+    ]);
+
+    const pointsByUser: Record<string, number> = Object.fromEntries(
+      userIds.map((id) => [id, 0])
+    );
+    for (const s of gameScores ?? []) {
+      if (s.user_id in pointsByUser) pointsByUser[s.user_id] += s.total_points ?? 0;
+    }
+    for (const cp of championPicks ?? []) {
+      if (cp.user_id in pointsByUser) pointsByUser[cp.user_id] += cp.points_awarded ?? 0;
+    }
+
+    const rows = Object.entries(pointsByUser)
+      .sort((a, b) => b[1] - a[1])
+      .map(([userId, points], i) => ({
+        group_id: group.id,
+        game_day: gameDay,
+        user_id: userId,
+        rank: i + 1,
+        points,
+      }));
+
+    await supabase
+      .from("ranking_snapshots")
+      .upsert(rows, { onConflict: "group_id,game_day,user_id" });
+  }
+}
+
 function isAuthorized(request: Request): boolean {
   if (process.env.NODE_ENV === "development") return true;
   const auth = request.headers.get("authorization");
@@ -162,6 +219,10 @@ export async function GET(request: Request) {
           }
         }
       }
+    }
+
+    if (scored > 0) {
+      await saveRankingSnapshots(supabase, today);
     }
 
     return NextResponse.json({ message: "Results synced", updated, scored });

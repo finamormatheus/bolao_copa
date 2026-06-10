@@ -4,6 +4,43 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ---- FWC2026 font family ---- */
+@font-face {
+  font-family: "FWC2026";
+  src: url("/fonts/FWC2026-NormalRegular.ttf") format("truetype");
+  font-weight: 100 550;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "FWC2026";
+  src: url("/fonts/FWC2026-NormalBlack.ttf") format("truetype");
+  font-weight: 551 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "FWC2026 SemiExpanded";
+  src: url("/fonts/FWC2026-SemiExpandedBlack.ttf") format("truetype");
+  font-weight: 600 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "FWC2026 UltraCondensed";
+  src: url("/fonts/FWC2026-UltraCondensedBold.ttf") format("truetype");
+  font-weight: 500 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "FIFA26 Logo";
+  src: url("/fonts/fifa-26.ttf") format("truetype");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -49,6 +86,39 @@
 }
 
 :root {
+  /* ---- FWC2026 design tokens ---- */
+  --bolao-bg:         #0a0a0e;
+  --bolao-surface:    rgb(21,21,25);
+  --bolao-surface-2:  rgb(63,64,77);
+  --bolao-surface-3:  #1f1f26;
+  --bolao-hairline:   rgba(247,247,248,0.08);
+  --bolao-hairline-2: rgba(247,247,248,0.14);
+  --bolao-ink:        rgb(247,247,248);
+  --bolao-ink-dim:    rgba(247,247,248,0.62);
+  --bolao-ink-faint:  rgba(247,247,248,0.40);
+  --bolao-ink-dark:   rgb(18,18,18);
+  --bolao-lime:       rgb(173,235,3);
+  --bolao-lime-soft:  rgba(173,235,3,0.16);
+  --bolao-gold:       rgb(232,163,14);
+  --bolao-pill:       rgb(247,247,248);
+  --bolao-red:        rgb(255,22,68);
+  --bolao-green-win:  rgb(1,230,118);
+  --bolao-radius-card: 22px;
+  /* group accent colors */
+  --bolao-g-A: rgb(1,230,118);
+  --bolao-g-B: rgb(255,22,68);
+  --bolao-g-C: rgb(255,145,3);
+  --bolao-g-D: rgb(48,79,254);
+  --bolao-g-E: rgb(98,0,234);
+  --bolao-g-F: rgb(199,255,2);
+  --bolao-g-G: rgb(240,98,146);
+  --bolao-g-H: rgb(100,255,218);
+  --bolao-g-I: rgb(171,71,188);
+  --bolao-g-J: rgb(0,120,136);
+  --bolao-g-K: rgb(255,61,0);
+  --bolao-g-L: rgb(33,150,243);
+
+  /* shadcn / tailwind tokens (keep for ui component compatibility) */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -83,48 +153,54 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
   }
-  body {
-    @apply bg-background text-foreground;
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bolao-bg);
+    color: var(--bolao-ink);
+    font-family: "FWC2026", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  html {
-    @apply font-sans;
-  }
+
+  /* scrollbar */
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb { background: var(--bolao-surface-2); border-radius: 99px; border: 2px solid var(--bolao-bg); }
+  *::-webkit-scrollbar-track { background: transparent; }
+
+  ::selection { background: var(--bolao-lime); color: var(--bolao-ink-dark); }
+  button { font-family: inherit; cursor: pointer; }
+  input { font-family: inherit; }
+}
+
+/* ---- page background watermark ---- */
+.bolao-app-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 600px at 80% -10%, rgba(173,235,3,0.06), transparent 60%),
+    radial-gradient(700px 500px at -10% 110%, rgba(48,79,254,0.05), transparent 60%);
+  z-index: 0;
+}
+
+/* ---- keyframes ---- */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(0.82); }
+}
+@keyframes savedPop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
 }

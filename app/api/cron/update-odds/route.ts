@@ -122,17 +122,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "No odds updates needed", updated: 0 });
     }
 
-    // Deduplica jogos (um jogo pode estar nas duas janelas se a cron atrasou)
-    const seenIds = new Set<string>();
-    const allGames: GameRow[] = [];
-    for (const g of [...(needs24h ?? []), ...(needs1h ?? [])]) {
-      if (!seenIds.has(g.id)) {
-        seenIds.add(g.id);
-        allGames.push(g);
-      }
-    }
+    // Busca todos os jogos futuros para atualizar odds de uma vez (a API retorna tudo de qualquer forma)
+    const { data: futureGames } = await supabase
+      .from("games")
+      .select("id, home_team, away_team, match_date")
+      .eq("status", "NS")
+      .gt("match_date", now.toISOString());
 
-    const { updated } = await updateOddsForGames(allGames, supabase, now);
+    const { updated } = await updateOddsForGames(futureGames ?? [], supabase, now);
 
     // Marca flags nos jogos atualizados
     if (needs24h?.length) {

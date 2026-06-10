@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import LogoutButton from "@/components/LogoutButton";
+import NavTabs from "@/components/NavTabs";
 
 export default async function DashboardLayout({
   children,
@@ -32,23 +31,85 @@ export default async function DashboardLayout({
       .maybeSingle(),
   ]);
 
-  const initials = (profile?.display_name ?? user.email ?? "?")
+  const displayName = profile?.display_name ?? user.email ?? "?";
+  const initials = displayName
     .split(" ")
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
 
-  const header = (
-    <header className="border-b">
-      <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-        <span className="font-bold text-lg">⚽ Bolão 2026</span>
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={profile?.avatar_url ?? undefined} />
-            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-          </Avatar>
-          <span className="text-sm hidden sm:block">{profile?.display_name}</span>
+  const headerEl = (
+    <header style={{
+      position: "sticky",
+      top: 0,
+      zIndex: 20,
+      background: "rgba(10,10,14,0.82)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      borderBottom: "1px solid var(--bolao-hairline)",
+    }}>
+      <div style={{
+        maxWidth: 760,
+        margin: "0 auto",
+        padding: "0 18px",
+        height: 60,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+      }}>
+        {/* Left: wordmark + nav */}
+        <div style={{ display: "flex", alignItems: "center", gap: 22, minWidth: 0 }}>
+          <span style={{
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+            fontSize: 19,
+            fontWeight: 800,
+            letterSpacing: "-0.01em",
+            whiteSpace: "nowrap",
+            textTransform: "uppercase",
+            display: "inline-flex",
+            alignItems: "baseline",
+            gap: 7,
+            color: "var(--bolao-ink)",
+          }}>
+            Bolão{" "}
+            <span style={{
+              color: "var(--bolao-lime)",
+              fontFamily: '"FIFA26 Logo", "FWC2026", system-ui, sans-serif',
+              fontSize: 24,
+              lineHeight: 0.8,
+            }}>26</span>
+          </span>
+          <NavTabs />
+        </div>
+
+        {/* Right: first name + avatar initial + logout */}
+        <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
+          <span style={{
+            fontSize: 13,
+            color: "var(--bolao-ink-dim)",
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+            display: "none",
+          }} className="sm:inline">
+            {displayName.split(" ")[0]}
+          </span>
+          <span style={{
+            width: 32,
+            height: 32,
+            borderRadius: 99,
+            background: "var(--bolao-surface-2)",
+            color: "var(--bolao-ink)",
+            fontSize: 12,
+            fontWeight: 800,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+            flexShrink: 0,
+          }}>
+            {initials}
+          </span>
           <LogoutButton />
         </div>
       </div>
@@ -57,14 +118,12 @@ export default async function DashboardLayout({
 
   if (!membership) {
     return (
-      <div className="min-h-screen bg-background">
-        {header}
-        <main className="max-w-4xl mx-auto px-4 py-6">
-          <div className="text-center py-16 space-y-2">
-            <p className="text-lg font-medium">Você não está em nenhum bolão.</p>
-            <p className="text-sm text-muted-foreground">
-              Entre em contato com o administrador.
-            </p>
+      <div className="bolao-app-bg" style={{ minHeight: "100vh", position: "relative" }}>
+        {headerEl}
+        <main style={{ maxWidth: 760, margin: "0 auto", padding: "22px 18px 80px", position: "relative", zIndex: 1 }}>
+          <div style={{ textAlign: "center", padding: "64px 0", color: "var(--bolao-ink-dim)" }}>
+            <p style={{ fontSize: 17, fontWeight: 600, margin: "0 0 6px" }}>Você não está em nenhum bolão.</p>
+            <p style={{ fontSize: 13, margin: 0 }}>Entre em contato com o administrador.</p>
           </div>
         </main>
       </div>
@@ -72,45 +131,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <span className="font-bold text-lg">⚽ Bolão 2026</span>
-            <nav className="flex items-center gap-4">
-              <Link
-                href="/palpites"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Palpites
-              </Link>
-              <Link
-                href="/ranking"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Ranking
-              </Link>
-              <Link
-                href="/regras"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Regras
-              </Link>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={profile?.avatar_url ?? undefined} />
-              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-            </Avatar>
-            <span className="text-sm hidden sm:block">{profile?.display_name}</span>
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 py-6">{children}</main>
+    <div className="bolao-app-bg" style={{ minHeight: "100vh", position: "relative" }}>
+      {headerEl}
+      <main style={{ maxWidth: 760, margin: "0 auto", padding: "22px 18px 80px", position: "relative", zIndex: 1 }}>
+        {children}
+      </main>
     </div>
   );
 }

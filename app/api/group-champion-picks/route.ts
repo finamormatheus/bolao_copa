@@ -55,6 +55,7 @@ export async function GET() {
       avatar_url: profile.avatar_url ?? null,
       team_name: cp?.team_name ?? null,
       points_awarded: cp?.points_awarded ?? 0,
+      is_me: profile.id === user.id,
     };
   });
 

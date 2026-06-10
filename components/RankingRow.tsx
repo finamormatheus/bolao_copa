@@ -115,6 +115,7 @@ export function RankingRow({ row, rank, isCurrentUser }: {
           display: "inline-flex", alignItems: "center", justifyContent: "center",
         }}>{initials(row.display_name)}</span>
         <div style={{
+          flex: 1, minWidth: 0,
           fontSize: 15, fontWeight: 700, letterSpacing: "0.01em",
           fontFamily: '"FWC2026", system-ui, sans-serif',
           textTransform: "uppercase",

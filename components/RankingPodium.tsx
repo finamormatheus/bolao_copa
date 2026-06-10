@@ -88,7 +88,9 @@ function PodiumColumn({ row, rank, isCurrentUser }: {
         textTransform: "uppercase",
         color: isCurrentUser ? "var(--bolao-lime)" : "var(--bolao-ink)",
         textAlign: "center",
-        maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        maxWidth: "100%", overflow: "hidden",
+        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+        wordBreak: "break-word", lineHeight: 1.2,
       }}>{row.display_name}</div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 2 }}>

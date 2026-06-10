@@ -20,7 +20,7 @@ const STORAGE_KEY = "bolao_rank_group";
 export function GroupSelector({ groups, selectedGroupId, currentGroupSlug }: GroupSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   // Restore last selected group from localStorage when no group param in URL
   useEffect(() => {
@@ -52,6 +52,9 @@ export function GroupSelector({ groups, selectedGroupId, currentGroupSlug }: Gro
       background: "var(--bolao-surface)",
       border: "1px solid var(--bolao-hairline)",
       overflowX: "auto",
+      opacity: isPending ? 0.6 : 1,
+      transition: "opacity 0.15s ease",
+      pointerEvents: isPending ? "none" : "auto",
     }}>
       {groups.map((g) => {
         const active = g.id === selectedGroupId;

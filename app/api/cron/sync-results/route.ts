@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMatches, fetchMatchesByDate, mapStatus } from "@/lib/api-football/client";
+import { syncFixtures } from "@/lib/api-football/sync-fixtures";
 import { createServiceClient } from "@/lib/supabase/service";
 import { calculateScore } from "@/lib/scoring/calculator";
 
@@ -111,6 +112,7 @@ export async function GET(request: Request) {
 
     let updated = 0;
     let scored = 0;
+    let shouldSyncFixtures = false;
 
     for (const match of matches) {
       const status = mapStatus(match.status);
@@ -189,7 +191,11 @@ export async function GET(request: Request) {
             .from("game_scores")
             .upsert(scoreRows, { onConflict: "user_id,game_id" });
 
-          if (!error) scored += scoreRows.length;
+          if (!error) {
+            scored += scoreRows.length;
+            // Jogo terminou — atualiza fixtures para capturar eventuais mudanças de calendário
+            shouldSyncFixtures = true;
+          }
         }
 
         // Calcula pontos de campeão quando a Final termina
@@ -225,7 +231,22 @@ export async function GET(request: Request) {
       await saveRankingSnapshots(supabase, today);
     }
 
-    return NextResponse.json({ message: "Results synced", updated, scored });
+    let fixturesSynced: number | undefined;
+    if (shouldSyncFixtures) {
+      try {
+        const result = await syncFixtures();
+        fixturesSynced = result.synced;
+      } catch (err) {
+        console.error("[sync-results] fixture sync after FT failed:", err);
+      }
+    }
+
+    return NextResponse.json({
+      message: "Results synced",
+      updated,
+      scored,
+      ...(fixturesSynced !== undefined && { fixturesSynced }),
+    });
   } catch (err) {
     console.error("[sync-results]", err);
     return NextResponse.json(

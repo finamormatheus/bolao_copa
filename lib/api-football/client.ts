@@ -42,10 +42,17 @@ export async function fetchMatchesByDate(date: string): Promise<FDMatch[]> {
 }
 
 export async function fetchLiveMatches(): Promise<FDMatch[]> {
-  const data = await fdFetch<FDMatchesResponse>(
-    `/competitions/${WC_CODE}/matches`,
-    { status: "IN_PLAY,PAUSED" }
-  );
+  // URLSearchParams encodes commas as %2C; football-data.org requires literal commas
+  const url = `${BASE_URL}/competitions/${WC_CODE}/matches?status=IN_PLAY,PAUSED`;
+  const res = await fetch(url, {
+    headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_API_KEY! },
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`football-data.org error ${res.status}: ${text}`);
+  }
+  const data: FDMatchesResponse = await res.json();
   return data.matches;
 }
 

@@ -122,6 +122,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "No odds updates needed", updated: 0 });
     }
 
+    // Marca flags antes de chamar a API externa — garante que não se perca a janela
+    // mesmo se fetchWorldCupOdds() falhar por timeout ou rate limit
+    await Promise.all([
+      needs24h?.length
+        ? supabase.from("games").update({ odds_fetched_24h: true }).in("id", needs24h.map((g) => g.id))
+        : Promise.resolve(),
+      needs1h?.length
+        ? supabase.from("games").update({ odds_fetched_1h: true }).in("id", needs1h.map((g) => g.id))
+        : Promise.resolve(),
+    ]);
+
     // Busca todos os jogos futuros para atualizar odds de uma vez (a API retorna tudo de qualquer forma)
     const { data: futureGames } = await supabase
       .from("games")
@@ -130,20 +141,6 @@ export async function GET(request: Request) {
       .gt("match_date", now.toISOString());
 
     const { updated } = await updateOddsForGames(futureGames ?? [], supabase, now);
-
-    // Marca flags nos jogos atualizados
-    if (needs24h?.length) {
-      await supabase
-        .from("games")
-        .update({ odds_fetched_24h: true })
-        .in("id", needs24h.map((g) => g.id));
-    }
-    if (needs1h?.length) {
-      await supabase
-        .from("games")
-        .update({ odds_fetched_1h: true })
-        .in("id", needs1h.map((g) => g.id));
-    }
 
     return NextResponse.json({
       message: "Odds updated",

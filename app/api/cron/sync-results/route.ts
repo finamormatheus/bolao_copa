@@ -100,9 +100,11 @@ export async function GET(request: Request) {
     }
 
     // ── Busca dados do football-data.org ───────────────────────────────────────
-    // - Topo de hora: todos os jogos do dia (captura postponements e status gerais)
-    // - Ao vivo / recém-iniciados: somente partidas live (1 req, mais rápido)
-    const matches = isTopOfHour
+    // - Topo de hora ou jogos NS que já passaram da hora: busca todos do dia
+    //   (garante capturar jogos que foram de NS → FT sem serem pegos ao vivo)
+    // - Apenas ao vivo confirmado: somente partidas live (1 req, mais rápido)
+    const needsFullSync = isTopOfHour || (justStarted?.length ?? 0) > 0;
+    const matches = needsFullSync
       ? await fetchMatchesByDate(today)
       : await fetchLiveMatches();
 

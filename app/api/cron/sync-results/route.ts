@@ -98,8 +98,7 @@ export async function GET(request: Request) {
       .from("games")
       .select("id")
       .in("status", ["FT", "FINISHED"])
-      .gt("match_date", cutoff6h)
-      .not("home_score", "is", null);
+      .gt("match_date", cutoff6h);
 
     let hasUnscored = false;
     if (finishedGames?.length) {

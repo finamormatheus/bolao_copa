@@ -30,7 +30,6 @@ begin
     select 1 from public.games g
     where g.status in ('FT', 'FINISHED')
       and g.match_date > now() - interval '6 hours'
-      and g.home_score is not null
       and exists     (select 1 from public.predictions  p  where p.game_id  = g.id)
       and not exists (select 1 from public.game_scores  gs where gs.game_id = g.id)
   ) into has_unscored;

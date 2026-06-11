@@ -355,7 +355,7 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
     return () => clearInterval(timer);
   }, [game.match_date]);
 
-  const isFinished = ["FT", "AET", "PEN"].includes(game.status);
+  const isFinished = ["FT", "AET", "PEN", "FINISHED"].includes(game.status);
   const isLive = ["LIVE", "1H", "HT", "2H", "ET", "BT", "P", "PAUSED"].includes(game.status);
   const locked = isFinished || isLive || withinLock;
   const canEdit = !locked;

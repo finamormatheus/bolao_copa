@@ -91,7 +91,28 @@ export async function GET(request: Request) {
         .lte("match_date", now.toISOString()),
     ]);
 
-    const hasActivity = (liveGames?.length ?? 0) > 0 || (justStarted?.length ?? 0) > 0;
+    // Jogos finalizados nas últimas 6h com score no DB mas sem pontuação calculada
+    // (captura o caso em que sync-fixtures atualizou FT direto sem passar pelo cron ao vivo)
+    const cutoff6h = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
+    const { data: finishedGames } = await supabase
+      .from("games")
+      .select("id")
+      .in("status", ["FT", "FINISHED"])
+      .gt("match_date", cutoff6h)
+      .not("home_score", "is", null);
+
+    let hasUnscored = false;
+    if (finishedGames?.length) {
+      const ids = finishedGames.map((g) => g.id);
+      const { data: scored } = await supabase
+        .from("game_scores")
+        .select("game_id")
+        .in("game_id", ids);
+      const scoredSet = new Set(scored?.map((s) => s.game_id));
+      hasUnscored = ids.some((id) => !scoredSet.has(id));
+    }
+
+    const hasActivity = (liveGames?.length ?? 0) > 0 || (justStarted?.length ?? 0) > 0 || hasUnscored;
     // Sync completo no topo da hora para capturar status de jogos do dia
     const isTopOfHour = now.getMinutes() < 2;
 
@@ -100,10 +121,9 @@ export async function GET(request: Request) {
     }
 
     // ── Busca dados do football-data.org ───────────────────────────────────────
-    // - Topo de hora ou jogos NS que já passaram da hora: busca todos do dia
-    //   (garante capturar jogos que foram de NS → FT sem serem pegos ao vivo)
+    // - Topo de hora, jogos NS passados, ou FT sem score calculado: busca todos do dia
     // - Apenas ao vivo confirmado: somente partidas live (1 req, mais rápido)
-    const needsFullSync = isTopOfHour || (justStarted?.length ?? 0) > 0;
+    const needsFullSync = isTopOfHour || (justStarted?.length ?? 0) > 0 || hasUnscored;
     const matches = needsFullSync
       ? await fetchMatchesByDate(today)
       : await fetchLiveMatches();

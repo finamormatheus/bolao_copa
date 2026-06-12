@@ -83,7 +83,7 @@ export interface Database {
       games: {
         Row: {
           id: string;
-          api_id: number;
+          api_id: number | null;
           home_team: string;
           away_team: string;
           home_team_logo: string | null;
@@ -100,10 +100,11 @@ export interface Database {
           odds_fetched_24h: boolean;
           odds_fetched_1h: boolean;
           updated_at: string;
+          wc26_api_id: string | null;
         };
         Insert: {
           id?: string;
-          api_id: number;
+          api_id?: number | null;
           home_team: string;
           away_team: string;
           home_team_logo?: string | null;
@@ -120,10 +121,11 @@ export interface Database {
           odds_fetched_24h?: boolean;
           odds_fetched_1h?: boolean;
           updated_at?: string;
+          wc26_api_id?: string | null;
         };
         Update: {
           id?: string;
-          api_id?: number;
+          api_id?: number | null;
           home_team?: string;
           away_team?: string;
           home_team_logo?: string | null;
@@ -140,6 +142,7 @@ export interface Database {
           odds_fetched_24h?: boolean;
           odds_fetched_1h?: boolean;
           updated_at?: string;
+          wc26_api_id?: string | null;
         };
         Relationships: [];
       };

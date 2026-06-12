@@ -19,7 +19,7 @@ export async function syncFixtures(): Promise<{ synced: number }> {
   const supabase = createServiceClient();
 
   const gameRows = games
-    .filter((g) => g.home_team_name_en && g.away_team_name_en)
+    .filter((g) => g.home_team_name_en && g.away_team_name_en && g.local_date)
     .map((g) => ({
     wc26_api_id: g.id,
     home_team: g.home_team_name_en,

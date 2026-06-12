@@ -1,0 +1,1 @@
+ALTER TABLE games ADD COLUMN wc26_api_id TEXT UNIQUE;

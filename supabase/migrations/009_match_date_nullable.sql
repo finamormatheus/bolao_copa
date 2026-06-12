@@ -1,0 +1,1 @@
+ALTER TABLE games ALTER COLUMN match_date DROP NOT NULL;

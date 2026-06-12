@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchLiveMatches, fetchMatchesByDate, mapStatus } from "@/lib/api-football/client";
-import { syncFixtures } from "@/lib/api-football/sync-fixtures";
+import { fetchAllGames, mapStatus, deriveWinner } from "@/lib/worldcup26/client";
+import { syncFixtures } from "@/lib/worldcup26/sync-fixtures";
 import { createServiceClient } from "@/lib/supabase/service";
 import { calculateScore } from "@/lib/scoring/calculator";
 
@@ -80,10 +80,9 @@ export async function GET(request: Request) {
     const now = new Date();
     const today = now.toISOString().split("T")[0];
 
-    // ── Verifica DB antes de chamar football-data.org ─────────────────────────
+    // ── Verifica DB antes de chamar a API ─────────────────────────────────────
     const [{ data: liveGames }, { data: justStarted }] = await Promise.all([
       supabase.from("games").select("id").in("status", ["LIVE", "HT"]),
-      // Jogos agendados que já deveriam ter começado (captura NS → LIVE)
       supabase
         .from("games")
         .select("id")
@@ -91,8 +90,7 @@ export async function GET(request: Request) {
         .lte("match_date", now.toISOString()),
     ]);
 
-    // Jogos finalizados nas últimas 6h com score no DB mas sem pontuação calculada
-    // (captura o caso em que sync-fixtures atualizou FT direto sem passar pelo cron ao vivo)
+    // Jogos finalizados nas últimas 6h com palpites mas sem pontuação calculada
     const cutoff6h = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
     const { data: finishedGames } = await supabase
       .from("games")
@@ -111,23 +109,30 @@ export async function GET(request: Request) {
       hasUnscored = ids.some((id) => !scoredSet.has(id));
     }
 
-    const hasActivity = (liveGames?.length ?? 0) > 0 || (justStarted?.length ?? 0) > 0 || hasUnscored;
-    // Sync completo no topo da hora para capturar status de jogos do dia
+    const hasActivity =
+      (liveGames?.length ?? 0) > 0 ||
+      (justStarted?.length ?? 0) > 0 ||
+      hasUnscored;
     const isTopOfHour = now.getMinutes() < 2;
 
     if (!hasActivity && !isTopOfHour) {
       return NextResponse.json({ message: "Nothing to sync", skipped: true });
     }
 
-    // ── Busca dados do football-data.org ───────────────────────────────────────
-    // - Topo de hora, jogos NS passados, ou FT sem score calculado: busca todos do dia
-    // - Apenas ao vivo confirmado: somente partidas live (1 req, mais rápido)
-    const needsFullSync = isTopOfHour || (justStarted?.length ?? 0) > 0 || hasUnscored;
-    const matches = needsFullSync
-      ? await fetchMatchesByDate(today)
-      : await fetchLiveMatches();
+    // ── Busca todos os jogos da worldcup26.ir ─────────────────────────────────
+    // A API não oferece filtro por data ou status — retorna os 104 jogos.
+    // Filtramos em memória para focar nos jogos ativos quando possível.
+    const allGames = await fetchAllGames();
 
-    if (matches.length === 0) {
+    const needsFullSync =
+      isTopOfHour || (justStarted?.length ?? 0) > 0 || hasUnscored;
+
+    // Se só há jogos ao vivo confirmados, filtra em memória (evita processar 104 rows desnecessariamente)
+    const games = needsFullSync
+      ? allGames
+      : allGames.filter((g) => g.time_elapsed !== "notstarted");
+
+    if (games.length === 0) {
       return NextResponse.json({ message: "No matches returned", updated: 0, scored: 0 });
     }
 
@@ -135,29 +140,29 @@ export async function GET(request: Request) {
     let scored = 0;
     let shouldSyncFixtures = false;
 
-    for (const match of matches) {
-      const status = mapStatus(match.status);
+    for (const game of games) {
+      const status = mapStatus(game.time_elapsed);
+      const homeScore = game.finished === "TRUE" ? parseInt(game.home_score, 10) : null;
+      const awayScore = game.finished === "TRUE" ? parseInt(game.away_score, 10) : null;
 
-      const { data: game } = await supabase
+      const { data: dbGame } = await supabase
         .from("games")
-        .update({
-          status,
-          home_score: match.score.fullTime.home,
-          away_score: match.score.fullTime.away,
-        })
-        .eq("api_id", match.id)
-        .select("id, stage, home_team, away_team, locked_home_win_prob, locked_draw_prob, locked_away_win_prob")
+        .update({ status, home_score: homeScore, away_score: awayScore })
+        .eq("wc26_api_id", game.id)
+        .select(
+          "id, stage, home_team, away_team, locked_home_win_prob, locked_draw_prob, locked_away_win_prob"
+        )
         .single();
 
-      if (!game) continue;
+      if (!dbGame) continue;
       updated++;
 
-      // Safety net: trava odds quando jogo começa ao vivo e ainda não foram travadas
-      if (LIVE_STATUSES.includes(status) && !game.locked_home_win_prob) {
+      // Trava odds quando jogo começa ao vivo e ainda não foram travadas
+      if (LIVE_STATUSES.includes(status) && !dbGame.locked_home_win_prob) {
         const { data: currentOdds } = await supabase
           .from("odds")
           .select("home_win_prob, draw_prob, away_win_prob")
-          .eq("game_id", game.id)
+          .eq("game_id", dbGame.id)
           .single();
 
         if (currentOdds) {
@@ -168,39 +173,35 @@ export async function GET(request: Request) {
               locked_draw_prob: currentOdds.draw_prob,
               locked_away_win_prob: currentOdds.away_win_prob,
             })
-            .eq("id", game.id);
+            .eq("id", dbGame.id);
         }
       }
 
       // Calcula pontuações quando jogo termina
-      if (
-        status === FINISHED_STATUS &&
-        match.score.fullTime.home !== null &&
-        match.score.fullTime.away !== null
-      ) {
+      if (status === FINISHED_STATUS && homeScore !== null && awayScore !== null) {
         const { data: predictions } = await supabase
           .from("predictions")
           .select("user_id, home_score, away_score")
-          .eq("game_id", game.id);
+          .eq("game_id", dbGame.id);
 
         if (predictions && predictions.length > 0) {
-          const lockedProbs = game.locked_home_win_prob
+          const lockedProbs = dbGame.locked_home_win_prob
             ? {
-                home: game.locked_home_win_prob,
-                draw: game.locked_draw_prob!,
-                away: game.locked_away_win_prob!,
+                home: dbGame.locked_home_win_prob,
+                draw: dbGame.locked_draw_prob!,
+                away: dbGame.locked_away_win_prob!,
               }
             : null;
 
           const scoreRows = predictions.map((p) => {
             const result = calculateScore(
               { home: p.home_score, away: p.away_score },
-              { home: match.score.fullTime.home!, away: match.score.fullTime.away! },
+              { home: homeScore, away: awayScore },
               lockedProbs
             );
             return {
               user_id: p.user_id,
-              game_id: game.id,
+              game_id: dbGame.id,
               base_points: result.basePoints,
               odds_bonus: result.exactBonus,
               breakdown: result.breakdown as unknown as Record<string, boolean>,
@@ -214,35 +215,35 @@ export async function GET(request: Request) {
 
           if (!error) {
             scored += scoreRows.length;
-            // Jogo terminou — atualiza fixtures para capturar eventuais mudanças de calendário
             shouldSyncFixtures = true;
           }
         }
 
         // Calcula pontos de campeão quando a Final termina
-        if (game.stage === "Final" && match.score.winner && match.score.winner !== "DRAW") {
-          const champion =
-            match.score.winner === "HOME_TEAM" ? game.home_team : game.away_team;
+        if (dbGame.stage === "Final") {
+          const winner = deriveWinner(game.home_score, game.away_score);
+          if (winner && winner !== "DRAW") {
+            const champion = winner === "HOME" ? dbGame.home_team : dbGame.away_team;
 
-          // Executa apenas uma vez (verifica se já foi calculado)
-          const { data: alreadyCalc } = await supabase
-            .from("champion_picks")
-            .select("id")
-            .not("calculated_at", "is", null)
-            .limit(1);
+            const { data: alreadyCalc } = await supabase
+              .from("champion_picks")
+              .select("id")
+              .not("calculated_at", "is", null)
+              .limit(1);
 
-          if (!alreadyCalc?.length) {
-            await Promise.all([
-              supabase
-                .from("champion_picks")
-                .update({ points_awarded: 20, calculated_at: now.toISOString() })
-                .eq("team_name", champion),
-              supabase
-                .from("champion_picks")
-                .update({ points_awarded: 0, calculated_at: now.toISOString() })
-                .neq("team_name", champion)
-                .is("calculated_at", null),
-            ]);
+            if (!alreadyCalc?.length) {
+              await Promise.all([
+                supabase
+                  .from("champion_picks")
+                  .update({ points_awarded: 20, calculated_at: now.toISOString() })
+                  .eq("team_name", champion),
+                supabase
+                  .from("champion_picks")
+                  .update({ points_awarded: 0, calculated_at: now.toISOString() })
+                  .neq("team_name", champion)
+                  .is("calculated_at", null),
+              ]);
+            }
           }
         }
       }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { syncFixtures } from "@/lib/api-football/sync-fixtures";
+import { syncFixtures } from "@/lib/worldcup26/sync-fixtures";
 
 function isAuthorized(request: Request): boolean {
   if (process.env.NODE_ENV === "development") return true;

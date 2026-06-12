@@ -4,6 +4,24 @@ export interface PodiumEntry {
   total_points: number;
   exact_scores: number;
   delta: number | null;
+  livePoints?: number;
+}
+
+function LiveBadge({ pts }: { pts: number }) {
+  if (!pts) return null;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center",
+      background: "rgba(255,22,68,0.1)",
+      color: "var(--bolao-red)",
+      border: "1px solid rgba(255,22,68,0.22)",
+      borderRadius: 999, padding: "2px 8px 1px",
+      fontSize: 11, fontWeight: 800,
+      fontFamily: '"FWC2026", system-ui, sans-serif',
+      fontVariantNumeric: "tabular-nums",
+      letterSpacing: "0.02em",
+    }}>+{pts}</span>
+  );
 }
 
 const MEDAL: Record<1 | 2 | 3, { color: string; soft: string; plinth: number }> = {
@@ -108,6 +126,11 @@ function PodiumColumn({ row, rank, isCurrentUser }: {
           color: "var(--bolao-ink-faint)",
         }}>pts</span>
       </div>
+      {(row.livePoints ?? 0) > 0 && (
+        <div style={{ marginTop: 4 }}>
+          <LiveBadge pts={row.livePoints!} />
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 6, marginBottom: 11 }}>
         <span style={{

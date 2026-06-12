@@ -140,10 +140,13 @@ export async function GET(request: Request) {
     let scored = 0;
     let shouldSyncFixtures = false;
 
+    const parseScore = (s: string): number | null => { const n = parseInt(s, 10); return isNaN(n) ? null : n; };
+
     for (const game of games) {
       const status = mapStatus(game.time_elapsed);
-      const homeScore = game.finished === "TRUE" ? parseInt(game.home_score, 10) : null;
-      const awayScore = game.finished === "TRUE" ? parseInt(game.away_score, 10) : null;
+      const isLiveOrFinished = LIVE_STATUSES.includes(status) || status === FINISHED_STATUS;
+      const homeScore = isLiveOrFinished ? parseScore(game.home_score) : null;
+      const awayScore = isLiveOrFinished ? parseScore(game.away_score) : null;
 
       const { data: dbGame } = await supabase
         .from("games")
@@ -157,8 +160,9 @@ export async function GET(request: Request) {
       if (!dbGame) continue;
       updated++;
 
-      // Trava odds quando jogo começa ao vivo e ainda não foram travadas
-      if (LIVE_STATUSES.includes(status) && !dbGame.locked_home_win_prob) {
+      // Trava odds quando jogo começa ao vivo (ou vai direto NS→FT) e ainda não foram travadas
+      let freshLockedProbs: { home: number; draw: number; away: number } | null = null;
+      if ((LIVE_STATUSES.includes(status) || status === FINISHED_STATUS) && !dbGame.locked_home_win_prob) {
         const { data: currentOdds } = await supabase
           .from("odds")
           .select("home_win_prob, draw_prob, away_win_prob")
@@ -174,6 +178,11 @@ export async function GET(request: Request) {
               locked_away_win_prob: currentOdds.away_win_prob,
             })
             .eq("id", dbGame.id);
+          freshLockedProbs = {
+            home: currentOdds.home_win_prob,
+            draw: currentOdds.draw_prob,
+            away: currentOdds.away_win_prob,
+          };
         }
       }
 
@@ -191,7 +200,7 @@ export async function GET(request: Request) {
                 draw: dbGame.locked_draw_prob!,
                 away: dbGame.locked_away_win_prob!,
               }
-            : null;
+            : freshLockedProbs;
 
           const scoreRows = predictions.map((p) => {
             const result = calculateScore(

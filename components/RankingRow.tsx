@@ -4,6 +4,7 @@ export interface RankRowEntry {
   total_points: number;
   exact_scores: number;
   delta: number | null;
+  livePoints?: number;
 }
 
 function initials(name: string) {
@@ -39,6 +40,23 @@ function Delta({ delta }: { delta: number | null }) {
       </span>
       {Math.abs(delta)}
     </span>
+  );
+}
+
+function LiveBadge({ pts }: { pts: number }) {
+  if (!pts) return null;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center",
+      background: "rgba(255,22,68,0.1)",
+      color: "var(--bolao-red)",
+      border: "1px solid rgba(255,22,68,0.22)",
+      borderRadius: 999, padding: "2px 7px 1px",
+      fontSize: 11, fontWeight: 800,
+      fontFamily: '"FWC2026", system-ui, sans-serif',
+      fontVariantNumeric: "tabular-nums",
+      letterSpacing: "0.02em",
+    }}>+{pts}</span>
   );
 }
 
@@ -158,23 +176,26 @@ export function RankingRow({ row, rank, isCurrentUser }: {
         <Delta delta={row.delta} />
       </span>
 
-      <span style={{
-        width: 64, textAlign: "right", flexShrink: 0,
-        display: "flex", alignItems: "baseline", justifyContent: "flex-end", gap: 4,
+      <div style={{
+        width: 64, flexShrink: 0,
+        display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3,
       }}>
-        <span style={{
-          fontSize: 21, fontWeight: 800,
-          fontFamily: '"FWC2026", system-ui, sans-serif',
-          fontVariantNumeric: "tabular-nums",
-          color: isCurrentUser ? "var(--bolao-lime)" : "var(--bolao-ink)",
-        }}>{row.total_points}</span>
-        <span style={{
-          fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em",
-          fontFamily: '"FWC2026", system-ui, sans-serif',
-          textTransform: "uppercase",
-          color: "var(--bolao-ink-faint)",
-        }}>pts</span>
-      </span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+          <span style={{
+            fontSize: 21, fontWeight: 800,
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+            fontVariantNumeric: "tabular-nums",
+            color: isCurrentUser ? "var(--bolao-lime)" : "var(--bolao-ink)",
+          }}>{row.total_points}</span>
+          <span style={{
+            fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em",
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+            textTransform: "uppercase",
+            color: "var(--bolao-ink-faint)",
+          }}>pts</span>
+        </div>
+        <LiveBadge pts={row.livePoints ?? 0} />
+      </div>
     </div>
   );
 }

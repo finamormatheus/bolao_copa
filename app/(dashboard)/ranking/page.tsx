@@ -1,8 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { toSlug } from "./group-slug";
 import { GroupSelector } from "./GroupSelector";
 import { RankingPodium, type PodiumEntry } from "@/components/RankingPodium";
 import { RankingListHeader, RankingRow, type RankRowEntry } from "@/components/RankingRow";
+import { LiveRankingRefresher } from "@/components/LiveRankingRefresher";
+import { calculateScore } from "@/lib/scoring/calculator";
+import { translateTeamName } from "@/lib/translations/teams";
 
 interface RankingEntry {
   user_id: string;
@@ -10,6 +14,7 @@ interface RankingEntry {
   total_points: number;
   exact_scores: number;
   delta: number | null;
+  livePoints: number;
 }
 
 export default async function RankingPage({
@@ -54,7 +59,7 @@ export default async function RankingPage({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [{ data: scores }, { data: championPicksData }] = await Promise.all([
+  const [{ data: scores }, { data: championPicksData }, { data: liveGamesData }] = await Promise.all([
     supabase
       .from("game_scores")
       .select("user_id, total_points, breakdown")
@@ -63,7 +68,39 @@ export default async function RankingPage({
       .from("champion_picks")
       .select("user_id, points_awarded")
       .in("user_id", groupUserIds.length > 0 ? groupUserIds : [""]),
+    supabase
+      .from("games")
+      .select("id, home_team, away_team, home_score, away_score, status, locked_home_win_prob, locked_draw_prob, locked_away_win_prob")
+      .in("status", ["LIVE", "HT"])
+      .not("home_score", "is", null),
   ]);
+
+  const liveGamesWithScores = liveGamesData ?? [];
+
+  const provisionalMap = new Map<string, number>();
+  if (liveGamesWithScores.length > 0 && groupUserIds.length > 0) {
+    const liveGameIds = liveGamesWithScores.map((g) => g.id);
+    const serviceClient = createServiceClient();
+    const { data: livePreds } = await serviceClient
+      .from("predictions")
+      .select("user_id, game_id, home_score, away_score")
+      .in("game_id", liveGameIds)
+      .in("user_id", groupUserIds);
+
+    for (const pred of livePreds ?? []) {
+      const game = liveGamesWithScores.find((g) => g.id === pred.game_id);
+      if (!game || game.home_score === null || game.away_score === null) continue;
+      const lockedProbs = game.locked_home_win_prob != null
+        ? { home: game.locked_home_win_prob, draw: game.locked_draw_prob!, away: game.locked_away_win_prob! }
+        : null;
+      const result = calculateScore(
+        { home: pred.home_score, away: pred.away_score },
+        { home: game.home_score, away: game.away_score },
+        lockedProbs
+      );
+      provisionalMap.set(pred.user_id, (provisionalMap.get(pred.user_id) ?? 0) + result.totalPoints);
+    }
+  }
 
   // ranking_snapshots is not yet in the generated types; cast to any until types are regenerated
   const { data: snapshots } = (await (supabase as any)
@@ -110,10 +147,15 @@ export default async function RankingPage({
     rankingMap[userId].total_points += cp.points_awarded ?? 0;
   }
 
-  const sorted = Object.values(rankingMap).sort((a, b) => b.total_points - a.total_points);
+  const sorted = Object.values(rankingMap).sort(
+    (a, b) =>
+      (b.total_points + (provisionalMap.get(b.user_id) ?? 0)) -
+      (a.total_points + (provisionalMap.get(a.user_id) ?? 0))
+  );
 
   const ranking: RankingEntry[] = sorted.map((row, i) => ({
     ...row,
+    livePoints: provisionalMap.get(row.user_id) ?? 0,
     delta: prevRankByUser[row.user_id] !== undefined
       ? prevRankByUser[row.user_id] - (i + 1)
       : null,
@@ -128,6 +170,7 @@ export default async function RankingPage({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      <LiveRankingRefresher hasLiveGames={liveGamesWithScores.length > 0} />
       {/* Title + "Sua posição" pill */}
       <div style={{
         marginBottom: 16, display: "flex", alignItems: "flex-end",
@@ -174,7 +217,7 @@ export default async function RankingPage({
               fontSize: 13, fontWeight: 800,
               fontFamily: '"FWC2026", system-ui, sans-serif',
               fontVariantNumeric: "tabular-nums",
-            }}>{me.total_points} pts</span>
+            }}>{me.total_points + me.livePoints} pts</span>
           </div>
         )}
       </div>
@@ -187,6 +230,50 @@ export default async function RankingPage({
             selectedGroupId={selectedGroupId}
             currentGroupSlug={groupParam ?? null}
           />
+        </div>
+      )}
+
+      {liveGamesWithScores.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          padding: "9px 14px",
+          borderRadius: 12,
+          background: "rgba(255,22,68,0.07)",
+          border: "1px solid rgba(255,22,68,0.2)",
+          marginBottom: 16,
+        }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: "50%",
+            background: "var(--bolao-red)", flexShrink: 0,
+            animation: "livePulse 1.1s ease-in-out infinite",
+          }} />
+          <span style={{
+            fontSize: 11, fontWeight: 800, letterSpacing: "0.08em",
+            textTransform: "uppercase", color: "var(--bolao-red)", flexShrink: 0,
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+          }}>Ao vivo</span>
+          <span style={{ width: 1, height: 12, background: "rgba(255,22,68,0.25)", flexShrink: 0 }} />
+          <div style={{
+            flex: 1, display: "flex", gap: 14, flexWrap: "wrap",
+            fontSize: 13, fontWeight: 700,
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+            color: "var(--bolao-ink)",
+          }}>
+            {liveGamesWithScores.map((g) => (
+              <span key={g.id}>
+                {translateTeamName(g.home_team)} {g.home_score}×{g.away_score} {translateTeamName(g.away_team)}
+                {g.status === "HT" && (
+                  <span style={{ fontSize: 10, color: "var(--bolao-ink-dim)", marginLeft: 5,
+                    fontFamily: '"Noto Sans", system-ui, sans-serif',
+                  }}>· INT</span>
+                )}
+              </span>
+            ))}
+          </div>
+          <span style={{
+            fontSize: 11, color: "var(--bolao-ink-faint)", flexShrink: 0,
+            fontFamily: '"Noto Sans", system-ui, sans-serif',
+          }}>provisório</span>
         </div>
       )}
 

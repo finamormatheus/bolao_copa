@@ -17,14 +17,15 @@ export async function GET(request: Request) {
 
   const { data: game } = await supabase
     .from("games")
-    .select("match_date")
+    .select("match_date, status")
     .eq("id", gameId)
     .single();
 
   if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
+  const isLiveOrFinished = ["LIVE", "HT", "FT", "AET", "PEN", "FINISHED"].includes(game.status ?? "");
   const diff = new Date(game.match_date).getTime() - Date.now();
-  if (diff > LOCK_MINUTES * 60 * 1000) {
+  if (!isLiveOrFinished && diff > LOCK_MINUTES * 60 * 1000) {
     return NextResponse.json({ error: "Game not locked yet" }, { status: 403 });
   }
 

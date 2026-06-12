@@ -44,6 +44,12 @@ function fmtTime(dateStr: string): string {
   });
 }
 
+function fmtDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("pt-BR", {
+    weekday: "short", day: "2-digit", month: "short",
+  });
+}
+
 function outcome(h: number, a: number): "home" | "draw" | "away" {
   return h > a ? "home" : a > h ? "away" : "draw";
 }
@@ -241,6 +247,7 @@ type GroupPick = {
   avatar_url: string | null;
   home_score: number | null;
   away_score: number | null;
+  total_points: number | null;
 };
 
 function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
@@ -250,7 +257,9 @@ function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
   const [picks, setPicks] = useState<GroupPick[] | "loading" | null>(null);
 
   async function handleToggle() {
-    if (!open && picks === null) {
+    const wasOpen = open;
+    setOpen((v) => !v);
+    if (!wasOpen && picks === null) {
       setPicks("loading");
       try {
         const res = await fetch(`/api/game-picks?gameId=${gameId}`);
@@ -260,7 +269,6 @@ function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
         setPicks([]);
       }
     }
-    setOpen((v) => !v);
   }
 
   const actualOutcome = isFinished && homeScore !== null && awayScore !== null
@@ -272,11 +280,21 @@ function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
         width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
         background: "none", border: "none", color: "var(--bolao-ink-dim)", padding: "2px 0",
         fontSize: 12.5, fontFamily: '"Noto Sans", system-ui, sans-serif', fontWeight: 600,
+        cursor: "pointer",
       }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap" }}>
-          <span style={{ fontSize: 13 }}>👥</span> Palpites do grupo
+          {picks === "loading" ? (
+            <span style={{
+              width: 13, height: 13, borderRadius: "50%", flexShrink: 0,
+              border: "2px solid currentColor", borderTopColor: "transparent",
+              display: "inline-block", animation: "bolao-spin 0.6s linear infinite",
+            }} />
+          ) : (
+            <span style={{ fontSize: 13 }}>👥</span>
+          )}
+          Palpites do grupo
         </span>
-        <span style={{ display: "inline-block", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+        <span style={{ display: "inline-block", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
       </button>
 
       {open && (
@@ -293,12 +311,13 @@ function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
                 ? outcome(p.home_score!, p.away_score!) === actualOutcome : false;
               const exact = correct && isFinished
                 ? p.home_score === homeScore && p.away_score === awayScore : false;
+              const showPts = isFinished && p.total_points !== null;
               return (
                 <div key={i} style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   borderRadius: 8, padding: "4px 0",
                 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
                     <span style={{
                       width: 22, height: 22, borderRadius: 99, flexShrink: 0,
                       background: "var(--bolao-surface-2)", color: "var(--bolao-ink)",
@@ -312,13 +331,26 @@ function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
                     }}>{p.display_name}</span>
                   </span>
                   <span style={{
-                    fontFamily: '"FWC2026", system-ui, sans-serif',
-                    fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums",
-                    color: exact ? "var(--bolao-green-win)" : correct ? "var(--bolao-lime)" : "var(--bolao-ink-dim)",
-                    display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0,
+                    display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0,
                   }}>
-                    {exact && <span style={{ fontSize: 11 }}>🎯</span>}
-                    {hasGuess ? `${p.home_score}–${p.away_score}` : "—"}
+                    {showPts && (
+                      <span style={{
+                        fontFamily: '"FWC2026", system-ui, sans-serif',
+                        fontSize: 11.5, fontWeight: 800, fontVariantNumeric: "tabular-nums",
+                        color: p.total_points! > 0 ? "#FFB300" : "var(--bolao-ink-faint)",
+                      }}>
+                        {p.total_points! > 0 ? `+${p.total_points}` : "0"}
+                      </span>
+                    )}
+                    <span style={{
+                      fontFamily: '"FWC2026", system-ui, sans-serif',
+                      fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums",
+                      color: exact ? "var(--bolao-green-win)" : correct ? "var(--bolao-lime)" : "var(--bolao-ink-dim)",
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                    }}>
+                      {exact && <span style={{ fontSize: 11 }}>🎯</span>}
+                      {hasGuess ? `${p.home_score}–${p.away_score}` : "—"}
+                    </span>
                   </span>
                 </div>
               );
@@ -339,14 +371,20 @@ interface GameCardProps {
   score: GameScore | null;
   onSave: (gameId: string, home: number, away: number) => Promise<void>;
   groupStripe?: boolean;
+  showDate?: boolean;
 }
 
-export default function GameCard({ game, odds, prediction, score, onSave, groupStripe = true }: GameCardProps) {
+export default function GameCard({ game, odds, prediction, score, onSave, groupStripe = true, showDate = false }: GameCardProps) {
   const [homeInput, setHomeInput] = useState(prediction?.home_score?.toString() ?? "");
   const [awayInput, setAwayInput] = useState(prediction?.away_score?.toString() ?? "");
   const [, startTransition] = useTransition();
   const [saveState, setSaveState] = useState<"idle" | "saved" | "invalid" | "error">("idle");
   const [withinLock, setWithinLock] = useState(false);
+
+  const isSaved =
+    prediction !== null &&
+    prediction.home_score === parseInt(homeInput) &&
+    prediction.away_score === parseInt(awayInput);
 
   useEffect(() => {
     const check = () => setWithinLock(isWithinLock(game.match_date));
@@ -407,6 +445,15 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+          {showDate && (
+            <span style={{
+              fontFamily: '"Noto Sans", system-ui, sans-serif',
+              fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+              color: "var(--bolao-ink-dim)",
+            }}>
+              {fmtDate(game.match_date)}
+            </span>
+          )}
           <span style={{
             fontFamily: '"FWC2026", system-ui, sans-serif',
             fontSize: 13, fontWeight: 800, letterSpacing: "0.02em",
@@ -480,9 +527,11 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
                 fontSize: 12, color: "var(--bolao-ink-faint)",
                 fontFamily: '"Noto Sans", system-ui, sans-serif',
               }}>
-                {homeInput !== "" && awayInput !== ""
-                  ? "Palpite preenchido — salve para confirmar"
-                  : "Faça seu palpite acima"}
+                {isSaved
+                  ? <span style={{ color: "var(--bolao-lime)" }}>Palpite salvo ✓</span>
+                  : homeInput !== "" && awayInput !== ""
+                    ? "Palpite preenchido — salve para confirmar"
+                    : "Faça seu palpite acima"}
               </span>
               <button onClick={handleSave} style={{
                 border: "none", borderRadius: 10, padding: "9px 18px",

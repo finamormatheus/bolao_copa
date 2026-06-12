@@ -67,7 +67,9 @@ export default function ChampionPicker({ teams, initialPick, locked }: Props) {
   }, []);
 
   async function handleExpand() {
-    if (!expanded && groupPicks === null) {
+    const wasExpanded = expanded;
+    setExpanded((v) => !v);
+    if (!wasExpanded && groupPicks === null) {
       setGroupPicks("loading");
       try {
         const res = await fetch("/api/group-champion-picks");
@@ -77,7 +79,6 @@ export default function ChampionPicker({ teams, initialPick, locked }: Props) {
         setGroupPicks([]);
       }
     }
-    setExpanded((v) => !v);
   }
 
   async function handleSelect(team: string) {
@@ -239,7 +240,16 @@ export default function ChampionPicker({ teams, initialPick, locked }: Props) {
               cursor: "pointer",
             }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap" }}>
-                <span style={{ fontSize: 13 }}>🏆</span> Palpites de campeão do grupo
+                {groupPicks === "loading" ? (
+                  <span style={{
+                    width: 13, height: 13, borderRadius: "50%", flexShrink: 0,
+                    border: "2px solid currentColor", borderTopColor: "transparent",
+                    display: "inline-block", animation: "bolao-spin 0.6s linear infinite",
+                  }} />
+                ) : (
+                  <span style={{ fontSize: 13 }}>🏆</span>
+                )}
+                Palpites de campeão do grupo
                 {Array.isArray(groupPicks) && (
                   <span style={{ color: "var(--bolao-ink-faint)" }}>
                     · {groupPicks.filter((m) => m.team_name).length}

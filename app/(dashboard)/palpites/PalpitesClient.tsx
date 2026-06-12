@@ -219,6 +219,7 @@ export default function PalpitesClient({
                 prediction={predictions.find((p) => p.game_id === game.id) ?? null}
                 score={scores.find((sc) => sc.game_id === game.id) ?? null}
                 onSave={handleSave}
+                showDate={view === "grupos"}
               />
             ))}
           </div>

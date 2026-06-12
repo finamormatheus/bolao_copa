@@ -50,23 +50,35 @@ export async function GET(request: Request) {
 
   // Service role necessário — RLS de predictions restringe leitura ao próprio usuário
   const serviceClient = createServiceClient();
-  const { data: predictions } = await serviceClient
-    .from("predictions")
-    .select("user_id, home_score, away_score")
-    .eq("game_id", gameId)
-    .in("user_id", userIds.length > 0 ? userIds : [""]);
+  const [{ data: predictions }, { data: scores }] = await Promise.all([
+    serviceClient
+      .from("predictions")
+      .select("user_id, home_score, away_score")
+      .eq("game_id", gameId)
+      .in("user_id", userIds.length > 0 ? userIds : [""]),
+    serviceClient
+      .from("game_scores")
+      .select("user_id, total_points")
+      .eq("game_id", gameId)
+      .in("user_id", userIds.length > 0 ? userIds : [""]),
+  ]);
 
   const predByUserId = Object.fromEntries(
     (predictions ?? []).map((p) => [p.user_id, p])
   );
+  const scoreByUserId = Object.fromEntries(
+    (scores ?? []).map((s) => [s.user_id, s])
+  );
 
   const picks = (profiles ?? []).map((profile) => {
     const pred = predByUserId[profile.id];
+    const score = scoreByUserId[profile.id];
     return {
       display_name: profile.display_name,
       avatar_url: profile.avatar_url ?? null,
       home_score: pred?.home_score ?? null,
       away_score: pred?.away_score ?? null,
+      total_points: score?.total_points ?? null,
     };
   });
 

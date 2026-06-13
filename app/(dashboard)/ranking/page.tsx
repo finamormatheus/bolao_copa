@@ -59,6 +59,19 @@ export default async function RankingPage({
 
   const today = new Date().toISOString().split("T")[0];
 
+  const { data: lastActiveGame } = await supabase
+    .from("games")
+    .select("match_date")
+    .not("status", "eq", "NS")
+    .order("match_date", { ascending: false })
+    .limit(1)
+    .single();
+
+  const lastActiveDay = lastActiveGame
+    ? new Date(new Date(lastActiveGame.match_date).getTime() - 5 * 60 * 60 * 1000)
+        .toISOString().split("T")[0]
+    : today;
+
   const [{ data: scores }, { data: championPicksData }, { data: liveGamesData }] = await Promise.all([
     supabase
       .from("game_scores")
@@ -107,7 +120,7 @@ export default async function RankingPage({
     .from("ranking_snapshots")
     .select("user_id, rank, game_day")
     .eq("group_id", selectedGroupId)
-    .lt("game_day", today)
+    .lt("game_day", lastActiveDay)
     .order("game_day", { ascending: false })) as { data: Array<{ user_id: string; rank: number; game_day: string }> | null };
 
 

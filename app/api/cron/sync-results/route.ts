@@ -11,6 +11,14 @@ async function saveRankingSnapshots(
   const { data: groups } = await supabase.from("groups").select("id");
   if (!groups?.length) return;
 
+  // Only include scores from games that kicked off on or before this game_day (UTC).
+  // This prevents a late-night cron run from including next-day game points in today's snapshot.
+  const { data: eligibleGames } = await supabase
+    .from("games")
+    .select("id")
+    .lte("match_date", `${gameDay}T23:59:59.999Z`);
+  const eligibleGameIds = (eligibleGames ?? []).map((g) => g.id);
+
   for (const group of groups) {
     const { data: members } = await supabase
       .from("group_members")
@@ -31,7 +39,11 @@ async function saveRankingSnapshots(
     const userIds = profiles.map((p) => p.id);
 
     const [{ data: gameScores }, { data: championPicks }] = await Promise.all([
-      supabase.from("game_scores").select("user_id, total_points").in("user_id", userIds),
+      supabase
+        .from("game_scores")
+        .select("user_id, total_points")
+        .in("user_id", userIds)
+        .in("game_id", eligibleGameIds.length > 0 ? eligibleGameIds : [""]),
       supabase.from("champion_picks").select("user_id, points_awarded").in("user_id", userIds),
     ]);
 
@@ -55,9 +67,13 @@ async function saveRankingSnapshots(
         points,
       }));
 
-    await (supabase as any)
+    const { error } = await (supabase as any)
       .from("ranking_snapshots")
       .upsert(rows, { onConflict: "group_id,game_day,user_id" });
+
+    if (error) {
+      console.error(`[sync-results] snapshot upsert failed for group ${group.id} day ${gameDay}:`, error);
+    }
   }
 }
 
@@ -78,8 +94,6 @@ export async function GET(request: Request) {
   try {
     const supabase = createServiceClient();
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
-
     // ── Verifica DB antes de chamar a API ─────────────────────────────────────
     const [{ data: liveGames }, { data: justStarted }] = await Promise.all([
       supabase.from("games").select("id").in("status", ["LIVE", "HT"]),
@@ -139,6 +153,7 @@ export async function GET(request: Request) {
     let updated = 0;
     let scored = 0;
     let shouldSyncFixtures = false;
+    const scoredGameDays = new Set<string>();
 
     const parseScore = (s: string): number | null => { const n = parseInt(s, 10); return isNaN(n) ? null : n; };
 
@@ -153,7 +168,7 @@ export async function GET(request: Request) {
         .update({ status, home_score: homeScore, away_score: awayScore })
         .eq("wc26_api_id", game.id)
         .select(
-          "id, stage, home_team, away_team, locked_home_win_prob, locked_draw_prob, locked_away_win_prob"
+          "id, stage, match_date, home_team, away_team, locked_home_win_prob, locked_draw_prob, locked_away_win_prob"
         )
         .single();
 
@@ -225,6 +240,9 @@ export async function GET(request: Request) {
           if (!error) {
             scored += scoreRows.length;
             shouldSyncFixtures = true;
+            // UTC-5 offset: games up to 2am Brasília (BRT=UTC-3) are attributed to the previous calendar day
+            const kickoffUtc5 = new Date(new Date(dbGame.match_date).getTime() - 5 * 60 * 60 * 1000);
+            scoredGameDays.add(kickoffUtc5.toISOString().split("T")[0]);
           }
         }
 
@@ -258,8 +276,8 @@ export async function GET(request: Request) {
       }
     }
 
-    if (scored > 0) {
-      await saveRankingSnapshots(supabase, today);
+    for (const gameDay of scoredGameDays) {
+      await saveRankingSnapshots(supabase, gameDay);
     }
 
     let fixturesSynced: number | undefined;

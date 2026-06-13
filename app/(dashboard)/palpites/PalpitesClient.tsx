@@ -17,7 +17,13 @@ interface Props {
   teams: string[];
 }
 
-type View = "crono" | "grupos";
+type View = "crono" | "grupos" | "encerrados";
+
+const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "FINISHED"]);
+
+function isGameFinished(game: Game) {
+  return FINISHED_STATUSES.has(game.status);
+}
 
 function groupLetter(groupName: string | null): string {
   if (!groupName) return "?";
@@ -98,8 +104,9 @@ export default function PalpitesClient({
   let sections: Section[] = [];
 
   if (view === "crono") {
+    const activeGames = sorted.filter((g) => !isGameFinished(g));
     const map = new Map<string, Game[]>();
-    for (const g of sorted) {
+    for (const g of activeGames) {
       const label = new Date(g.match_date).toLocaleDateString("pt-BR", {
         weekday: "long", day: "2-digit", month: "long",
       });
@@ -109,9 +116,10 @@ export default function PalpitesClient({
     sections = Array.from(map.entries()).map(([label, items]) => ({
       kind: "date", key: label, label, items,
     }));
-  } else {
+  } else if (view === "grupos") {
+    const activeGames = sorted.filter((g) => !isGameFinished(g));
     const map = new Map<string, Game[]>();
-    for (const g of sorted) {
+    for (const g of activeGames) {
       const letter = groupLetter(g.group_name);
       if (letter === "?") continue;
       if (!map.has(letter)) map.set(letter, []);
@@ -121,7 +129,27 @@ export default function PalpitesClient({
     sections = sorted_groups.map(([group, items]) => ({
       kind: "group", key: group, group, items,
     }));
+  } else {
+    // encerrados — reverse chronological, grouped by date
+    const finishedGames = sorted.filter(isGameFinished).reverse();
+    const map = new Map<string, Game[]>();
+    for (const g of finishedGames) {
+      const label = new Date(g.match_date).toLocaleDateString("pt-BR", {
+        weekday: "long", day: "2-digit", month: "long",
+      });
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(g);
+    }
+    sections = Array.from(map.entries()).map(([label, items]) => ({
+      kind: "date", key: label, label, items,
+    }));
   }
+
+  const VIEW_LABELS: Record<View, string> = {
+    crono: "Cronológico",
+    grupos: "Por grupo",
+    encerrados: "Encerrados",
+  };
 
   return (
     <div>
@@ -156,7 +184,7 @@ export default function PalpitesClient({
           display: "inline-flex", padding: 4, gap: 4, borderRadius: 12,
           background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)",
         }}>
-          {(["crono", "grupos"] as const).map((v) => {
+          {(["crono", "grupos", "encerrados"] as const).map((v) => {
             const active = view === v;
             return (
               <button
@@ -168,14 +196,24 @@ export default function PalpitesClient({
                   fontSize: 12.5, fontWeight: 800, letterSpacing: "0.03em", textTransform: "uppercase",
                   background: active ? "var(--bolao-lime)" : "transparent",
                   color: active ? "var(--bolao-ink-dark)" : "var(--bolao-ink-dim)",
+                  cursor: "pointer",
                 }}
               >
-                {v === "crono" ? "Cronológico" : "Por grupo"}
+                {VIEW_LABELS[v]}
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* Empty state */}
+      {sections.length === 0 && (
+        <div style={{ textAlign: "center", padding: "48px 0", color: "var(--bolao-ink-dim)" }}>
+          <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px" }}>
+            {view === "encerrados" ? "Nenhum jogo encerrado ainda." : "Nenhum jogo pendente."}
+          </p>
+        </div>
+      )}
 
       {/* Sections */}
       {sections.map((s) => (

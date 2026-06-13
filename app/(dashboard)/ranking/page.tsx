@@ -163,7 +163,9 @@ export default async function RankingPage({
   const sorted = Object.values(rankingMap).sort(
     (a, b) =>
       (b.total_points + (provisionalMap.get(b.user_id) ?? 0)) -
-      (a.total_points + (provisionalMap.get(a.user_id) ?? 0))
+      (a.total_points + (provisionalMap.get(a.user_id) ?? 0)) ||
+      b.exact_scores - a.exact_scores ||
+      a.user_id.localeCompare(b.user_id)
   );
 
   const ranking: RankingEntry[] = sorted.map((row, i) => ({

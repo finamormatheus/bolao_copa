@@ -41,24 +41,31 @@ async function saveRankingSnapshots(
     const [{ data: gameScores }, { data: championPicks }] = await Promise.all([
       supabase
         .from("game_scores")
-        .select("user_id, total_points")
+        .select("user_id, total_points, breakdown")
         .in("user_id", userIds)
         .in("game_id", eligibleGameIds.length > 0 ? eligibleGameIds : [""]),
       supabase.from("champion_picks").select("user_id, points_awarded").in("user_id", userIds),
     ]);
 
-    const pointsByUser: Record<string, number> = Object.fromEntries(
-      userIds.map((id) => [id, 0])
-    );
+    const pointsByUser: Record<string, number> = Object.fromEntries(userIds.map((id) => [id, 0]));
+    const exactByUser: Record<string, number> = Object.fromEntries(userIds.map((id) => [id, 0]));
     for (const s of gameScores ?? []) {
-      if (s.user_id in pointsByUser) pointsByUser[s.user_id] += s.total_points ?? 0;
+      if (s.user_id in pointsByUser) {
+        pointsByUser[s.user_id] += s.total_points ?? 0;
+        const bd = s.breakdown as { exact?: boolean } | null;
+        if (bd?.exact) exactByUser[s.user_id] += 1;
+      }
     }
     for (const cp of championPicks ?? []) {
       if (cp.user_id in pointsByUser) pointsByUser[cp.user_id] += cp.points_awarded ?? 0;
     }
 
     const rows = Object.entries(pointsByUser)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) =>
+        b[1] - a[1] ||
+        exactByUser[b[0]] - exactByUser[a[0]] ||
+        a[0].localeCompare(b[0])
+      )
       .map(([userId, points], i) => ({
         group_id: group.id,
         game_day: gameDay,
@@ -276,8 +283,27 @@ export async function GET(request: Request) {
       }
     }
 
+    // Snapshots from games scored in this run
     for (const gameDay of scoredGameDays) {
       await saveRankingSnapshots(supabase, gameDay);
+    }
+
+    // On full syncs (top-of-hour or cold start), also snapshot all FT game days
+    // so the table stays up to date even when no new scores were computed.
+    if (needsFullSync && scoredGameDays.size === 0) {
+      const { data: ftGames } = await supabase
+        .from("games")
+        .select("match_date")
+        .eq("status", "FT");
+      const ftGameDays = new Set(
+        (ftGames ?? []).map((g) => {
+          const kickoffUtc5 = new Date(new Date(g.match_date).getTime() - 5 * 60 * 60 * 1000);
+          return kickoffUtc5.toISOString().split("T")[0];
+        })
+      );
+      for (const gameDay of ftGameDays) {
+        await saveRankingSnapshots(supabase, gameDay);
+      }
     }
 
     let fixturesSynced: number | undefined;

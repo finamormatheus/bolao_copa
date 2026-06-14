@@ -1,8 +1,29 @@
 import { NextResponse } from "next/server";
 import { fetchAllGames, mapStatus, deriveWinner } from "@/lib/worldcup26/client";
+import { fetchLiveMatches } from "@/lib/api-football/client";
+import type { FDMatch } from "@/lib/api-football/types";
 import { syncFixtures } from "@/lib/worldcup26/sync-fixtures";
 import { createServiceClient } from "@/lib/supabase/service";
 import { calculateScore } from "@/lib/scoring/calculator";
+
+function normTeam(name: string): string {
+  return name.toLowerCase().trim().replace(/\s+/g, " ").replace(/[^a-z0-9 ]/g, "");
+}
+
+function bestScores(
+  wc26Home: number | null, wc26Away: number | null,
+  fdHome: number | null, fdAway: number | null
+): { home: number | null; away: number | null } {
+  const wc26Valid = wc26Home !== null && wc26Away !== null;
+  const fdValid = fdHome !== null && fdAway !== null;
+  if (!wc26Valid && !fdValid) return { home: null, away: null };
+  if (!wc26Valid) return { home: fdHome, away: fdAway };
+  if (!fdValid) return { home: wc26Home, away: wc26Away };
+  // Both valid — higher total goals = data captured later in the match
+  return (fdHome + fdAway) > (wc26Home + wc26Away)
+    ? { home: fdHome, away: fdAway }
+    : { home: wc26Home, away: wc26Away };
+}
 
 async function saveRankingSnapshots(
   supabase: ReturnType<typeof createServiceClient>,
@@ -140,10 +161,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Nothing to sync", skipped: true });
     }
 
-    // ── Busca todos os jogos da worldcup26.ir ─────────────────────────────────
-    // A API não oferece filtro por data ou status — retorna os 104 jogos.
-    // Filtramos em memória para focar nos jogos ativos quando possível.
-    const allGames = await fetchAllGames();
+    // ── Busca jogos de ambas as APIs em paralelo ──────────────────────────────
+    // worldcup26.ir retorna os 104 jogos; football-data só retorna jogos ao vivo.
+    // allSettled garante que uma falha em uma fonte não aborta o sync.
+    const [wc26Result, fdResult] = await Promise.allSettled([
+      fetchAllGames(),
+      fetchLiveMatches(),
+    ]);
+
+    if (wc26Result.status === "rejected") {
+      console.error("[sync-results] worldcup26.ir fetch failed:", wc26Result.reason);
+      return NextResponse.json(
+        { error: "Failed to fetch from worldcup26.ir", details: String(wc26Result.reason) },
+        { status: 500 }
+      );
+    }
+    const allGames = wc26Result.value;
+
+    if (fdResult.status === "rejected") {
+      console.warn("[sync-results] football-data.org fetch failed (proceeding with wc26 only):", fdResult.reason);
+    }
+    const fdMatches: FDMatch[] = fdResult.status === "fulfilled" ? fdResult.value : [];
 
     const needsFullSync =
       isTopOfHour || (justStarted?.length ?? 0) > 0 || hasUnscored;
@@ -157,6 +195,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "No matches returned", updated: 0, scored: 0 });
     }
 
+    // Monta lookup de partidas ao vivo do football-data indexado por nomes normalizados
+    const fdByKey = new Map<string, FDMatch>();
+    for (const m of fdMatches) {
+      const key1 = `${normTeam(m.homeTeam.name)}|${normTeam(m.awayTeam.name)}`;
+      const key2 = `${normTeam(m.homeTeam.shortName)}|${normTeam(m.awayTeam.shortName)}`;
+      fdByKey.set(key1, m);
+      if (key2 !== key1) fdByKey.set(key2, m);
+    }
+
     let updated = 0;
     let scored = 0;
     let shouldSyncFixtures = false;
@@ -167,15 +214,29 @@ export async function GET(request: Request) {
     for (const game of games) {
       const status = mapStatus(game.time_elapsed);
       const isLiveOrFinished = LIVE_STATUSES.includes(status) || status === FINISHED_STATUS;
-      const homeScore = isLiveOrFinished ? parseScore(game.home_score) : null;
-      const awayScore = isLiveOrFinished ? parseScore(game.away_score) : null;
+      const wc26Home = isLiveOrFinished ? parseScore(game.home_score) : null;
+      const wc26Away = isLiveOrFinished ? parseScore(game.away_score) : null;
+
+      // Busca placar do football-data para este jogo (se disponível)
+      const fdKey = `${normTeam(game.home_team_name_en)}|${normTeam(game.away_team_name_en)}`;
+      const fdMatch = fdByKey.get(fdKey);
+      const fdHome = fdMatch?.score.fullTime.home ?? null;
+      const fdAway = fdMatch?.score.fullTime.away ?? null;
+
+      // Usa o placar mais atualizado entre as duas fontes
+      const { home: bestHome, away: bestAway } = bestScores(wc26Home, wc26Away, fdHome, fdAway);
+
+      // Só sobrescreve placar se temos dados válidos — nunca apaga com null
+      const scoreUpdate = (bestHome !== null && bestAway !== null)
+        ? { home_score: bestHome, away_score: bestAway }
+        : {};
 
       const { data: dbGame } = await supabase
         .from("games")
-        .update({ status, home_score: homeScore, away_score: awayScore })
+        .update({ status, ...scoreUpdate })
         .eq("wc26_api_id", game.id)
         .select(
-          "id, stage, match_date, home_team, away_team, locked_home_win_prob, locked_draw_prob, locked_away_win_prob"
+          "id, stage, match_date, home_team, away_team, home_score, away_score, locked_home_win_prob, locked_draw_prob, locked_away_win_prob"
         )
         .single();
 
@@ -208,8 +269,12 @@ export async function GET(request: Request) {
         }
       }
 
+      // Para cálculo de pontos: usa o melhor placar desta rodada ou o que já está salvo no DB
+      const finalHome = bestHome ?? dbGame.home_score;
+      const finalAway = bestAway ?? dbGame.away_score;
+
       // Calcula pontuações quando jogo termina
-      if (status === FINISHED_STATUS && homeScore !== null && awayScore !== null) {
+      if (status === FINISHED_STATUS && finalHome !== null && finalAway !== null) {
         const { data: predictions } = await supabase
           .from("predictions")
           .select("user_id, home_score, away_score")
@@ -227,7 +292,7 @@ export async function GET(request: Request) {
           const scoreRows = predictions.map((p) => {
             const result = calculateScore(
               { home: p.home_score, away: p.away_score },
-              { home: homeScore, away: awayScore },
+              { home: finalHome, away: finalAway },
               lockedProbs
             );
             return {
@@ -255,7 +320,7 @@ export async function GET(request: Request) {
 
         // Calcula pontos de campeão quando a Final termina
         if (dbGame.stage === "Final") {
-          const winner = deriveWinner(game.home_score, game.away_score);
+          const winner = deriveWinner(String(finalHome), String(finalAway));
           if (winner && winner !== "DRAW") {
             const champion = winner === "HOME" ? dbGame.home_team : dbGame.away_team;
 

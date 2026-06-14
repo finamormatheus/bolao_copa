@@ -242,6 +242,73 @@ function OddsStrip({
   );
 }
 
+function LockedOddsStrip({
+  homeTeam, awayTeam, homeProb, drawProb, awayProb, winner,
+}: {
+  homeTeam: string; awayTeam: string;
+  homeProb: number; drawProb: number; awayProb: number;
+  winner: "home" | "draw" | "away" | null;
+}) {
+  const cells: { label: string; prob: number; key: "home" | "draw" | "away" }[] = [
+    { label: homeTeam, prob: homeProb, key: "home" },
+    { label: "Empate",  prob: drawProb, key: "draw" },
+    { label: awayTeam,  prob: awayProb, key: "away" },
+  ];
+  return (
+    <div>
+      <div style={{
+        fontSize: 9.5, fontWeight: 700, textTransform: "uppercase",
+        color: "var(--bolao-ink-faint)", letterSpacing: "0.05em", lineHeight: 1,
+        fontFamily: '"Noto Sans", system-ui, sans-serif',
+        marginBottom: 6,
+      }}>
+        🔒 Odds no fechamento
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {cells.map((c) => {
+          const isWinner = winner === c.key;
+          const isLoser = winner !== null && !isWinner;
+          return (
+            <div key={c.key} style={{
+              flex: 1, textAlign: "center", padding: "7px 6px",
+              background: isWinner ? "rgba(1,230,118,0.08)" : "rgba(247,247,248,0.04)",
+              borderRadius: 10,
+              border: isWinner
+                ? "1px solid rgba(1,230,118,0.45)"
+                : "1px solid var(--bolao-hairline)",
+              opacity: isLoser ? 0.4 : 1,
+              transition: "opacity .15s",
+            }}>
+              <div style={{
+                fontSize: 9.5, fontWeight: 700, textTransform: "uppercase",
+                color: isWinner ? "var(--bolao-lime)" : "var(--bolao-ink-faint)",
+                letterSpacing: "0.05em", lineHeight: 1.25,
+                fontFamily: '"Noto Sans", system-ui, sans-serif',
+              }}>
+                {c.label}
+              </div>
+              <div style={{
+                fontFamily: '"FWC2026", system-ui, sans-serif',
+                fontSize: 15, fontWeight: 800, marginTop: 1,
+                color: isWinner ? "var(--bolao-lime)" : "var(--bolao-ink-dim)",
+              }}>
+                {Math.round(c.prob * 100)}%
+              </div>
+              <div style={{
+                fontFamily: '"FWC2026", system-ui, sans-serif',
+                fontSize: 10.5, fontWeight: 700,
+                color: isWinner ? "var(--bolao-lime)" : "var(--bolao-ink-faint)",
+              }}>
+                +{probabilityToPoints(c.prob)} pts
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 type GroupPick = {
   display_name: string;
   avatar_url: string | null;
@@ -431,6 +498,11 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
   const group = groupLetter(game.group_name);
   const groupColor = group ? (GROUP_COLORS[group] ?? null) : null;
   const hasOdds = !!(odds?.home_win_prob && odds?.draw_prob && odds?.away_win_prob);
+  const hasLockedOdds = !!(game.locked_home_win_prob && game.locked_draw_prob && game.locked_away_win_prob);
+  const winner: "home" | "draw" | "away" | null =
+    isFinished && game.home_score !== null && game.away_score !== null
+      ? outcome(game.home_score, game.away_score)
+      : null;
 
   return (
     <div style={{
@@ -552,6 +624,17 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
         )}
 
         {!canEdit && (
+          <>
+          {hasLockedOdds && (
+            <LockedOddsStrip
+              homeTeam={translateTeamName(game.home_team)}
+              awayTeam={translateTeamName(game.away_team)}
+              homeProb={game.locked_home_win_prob!}
+              drawProb={game.locked_draw_prob!}
+              awayProb={game.locked_away_win_prob!}
+              winner={winner}
+            />
+          )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <span style={{
               fontSize: 12.5, color: "var(--bolao-ink-dim)", whiteSpace: "nowrap",
@@ -592,6 +675,7 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
               }}>Em jogo</span>
             )}
           </div>
+          </>
         )}
 
         {locked && (

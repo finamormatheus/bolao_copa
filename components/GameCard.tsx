@@ -309,7 +309,8 @@ function LockedOddsStrip({
   );
 }
 
-type GroupPick = {
+type GroupPickWithId = {
+  user_id: string;
   display_name: string;
   avatar_url: string | null;
   home_score: number | null;
@@ -317,29 +318,129 @@ type GroupPick = {
   total_points: number | null;
 };
 
-function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
-  gameId: string; homeScore: number | null; awayScore: number | null; isFinished: boolean;
+type GroupedPicksData = {
+  currentUserId: string;
+  groups: { id: string; name: string; picks: GroupPickWithId[] }[];
+};
+
+function pickOutcome(p: GroupPickWithId): "home" | "draw" | "away" | "none" {
+  if (p.home_score === null || p.away_score === null) return "none";
+  return p.home_score > p.away_score ? "home" : p.home_score === p.away_score ? "draw" : "away";
+}
+
+type PickSection = { label: string; picks: GroupPickWithId[] };
+
+function sectionedPicks(picks: GroupPickWithId[], homeTeam: string, awayTeam: string): PickSection[] {
+  const home = picks
+    .filter((p) => pickOutcome(p) === "home")
+    .sort((a, b) => b.home_score! - a.home_score! || a.away_score! - b.away_score!);
+  const draw = picks
+    .filter((p) => pickOutcome(p) === "draw")
+    .sort((a, b) => b.home_score! - a.home_score!);
+  const away = picks
+    .filter((p) => pickOutcome(p) === "away")
+    .sort((a, b) => b.away_score! - a.away_score! || a.home_score! - b.home_score!);
+  const none = picks.filter((p) => pickOutcome(p) === "none");
+  const sections: PickSection[] = [];
+  if (home.length > 0) sections.push({ label: `Apostas ${homeTeam}`, picks: home });
+  if (draw.length > 0) sections.push({ label: "Apostas empate", picks: draw });
+  if (away.length > 0) sections.push({ label: `Apostas ${awayTeam}`, picks: away });
+  if (none.length > 0) sections.push({ label: "Sem palpite", picks: none });
+  return sections;
+}
+
+function PickRow({
+  p, currentUserId, actualOutcome, isFinished, homeScore, awayScore,
+}: {
+  p: GroupPickWithId;
+  currentUserId: string;
+  actualOutcome: "home" | "draw" | "away" | null;
+  isFinished: boolean;
+  homeScore: number | null;
+  awayScore: number | null;
+}) {
+  const initials = p.display_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+  const hasGuess = p.home_score !== null && p.away_score !== null;
+  const correct = actualOutcome && hasGuess ? outcome(p.home_score!, p.away_score!) === actualOutcome : false;
+  const exact = correct && isFinished ? p.home_score === homeScore && p.away_score === awayScore : false;
+  const showPts = isFinished && p.total_points !== null;
+  const isMe = p.user_id === currentUserId;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      borderRadius: 8, padding: "4px 0",
+      opacity: isMe ? 1 : 0.85,
+    }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+        <span style={{
+          width: 22, height: 22, borderRadius: 99, flexShrink: 0,
+          background: isMe ? "var(--bolao-lime)" : "var(--bolao-surface-2)",
+          color: isMe ? "var(--bolao-ink-dark)" : "var(--bolao-ink)",
+          fontSize: 9.5, fontWeight: 800, fontFamily: '"FWC2026", system-ui, sans-serif',
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+        }}>{initials}</span>
+        <span style={{
+          fontSize: 13,
+          color: isMe ? "var(--bolao-ink)" : "var(--bolao-ink-dim)",
+          fontWeight: isMe ? 700 : 500,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          fontFamily: '"Noto Sans", system-ui, sans-serif',
+        }}>{p.display_name}</span>
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {showPts && (
+          <span style={{
+            fontFamily: '"FWC2026", system-ui, sans-serif',
+            fontSize: 11.5, fontWeight: 800, fontVariantNumeric: "tabular-nums",
+            color: p.total_points! > 0 ? "#FFB300" : "var(--bolao-ink-faint)",
+          }}>
+            {p.total_points! > 0 ? `+${p.total_points}` : "0"}
+          </span>
+        )}
+        <span style={{
+          fontFamily: '"FWC2026", system-ui, sans-serif',
+          fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums",
+          color: exact ? "var(--bolao-green-win)" : correct ? "var(--bolao-lime)" : "var(--bolao-ink-dim)",
+          display: "inline-flex", alignItems: "center", gap: 5,
+        }}>
+          {exact && <span style={{ fontSize: 11 }}>🎯</span>}
+          {hasGuess ? `${p.home_score}–${p.away_score}` : "—"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function GroupReveal({ gameId, homeTeam, awayTeam, homeScore, awayScore, isFinished }: {
+  gameId: string; homeTeam: string; awayTeam: string;
+  homeScore: number | null; awayScore: number | null; isFinished: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [picks, setPicks] = useState<GroupPick[] | "loading" | null>(null);
+  const [data, setData] = useState<GroupedPicksData | "loading" | null>(null);
 
   async function handleToggle() {
     const wasOpen = open;
     setOpen((v) => !v);
-    if (!wasOpen && picks === null) {
-      setPicks("loading");
+    if (!wasOpen && data === null) {
+      setData("loading");
       try {
         const res = await fetch(`/api/game-picks?gameId=${gameId}`);
         const json = await res.json();
-        setPicks(res.ok ? json.picks : []);
+        setData(res.ok ? json : null);
       } catch {
-        setPicks([]);
+        setData(null);
       }
     }
   }
 
   const actualOutcome = isFinished && homeScore !== null && awayScore !== null
     ? outcome(homeScore, awayScore) : null;
+
+  const isLoading = data === "loading";
+  const isEmpty = data !== "loading" && (
+    data === null || data.groups.every((g) => g.picks.length === 0)
+  );
+  const multiGroup = data !== "loading" && data !== null && data.groups.length > 1;
 
   return (
     <div style={{ borderTop: "1px solid var(--bolao-hairline)", paddingTop: 10 }}>
@@ -350,7 +451,7 @@ function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
         cursor: "pointer",
       }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap" }}>
-          {picks === "loading" ? (
+          {isLoading ? (
             <span style={{
               width: 13, height: 13, borderRadius: "50%", flexShrink: 0,
               border: "2px solid currentColor", borderTopColor: "transparent",
@@ -365,63 +466,63 @@ function GroupReveal({ gameId, homeScore, awayScore, isFinished }: {
       </button>
 
       {open && (
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 7 }}>
-          {picks === "loading" ? (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 0 }}>
+          {isLoading ? (
             <p style={{ fontSize: 12, color: "var(--bolao-ink-faint)", margin: 0 }}>Carregando...</p>
-          ) : !picks || picks.length === 0 ? (
+          ) : isEmpty ? (
             <p style={{ fontSize: 12, color: "var(--bolao-ink-faint)", margin: 0 }}>Nenhum palpite encontrado.</p>
           ) : (
-            picks.map((p, i) => {
-              const initials = p.display_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
-              const hasGuess = p.home_score !== null && p.away_score !== null;
-              const correct = actualOutcome && hasGuess
-                ? outcome(p.home_score!, p.away_score!) === actualOutcome : false;
-              const exact = correct && isFinished
-                ? p.home_score === homeScore && p.away_score === awayScore : false;
-              const showPts = isFinished && p.total_points !== null;
-              return (
-                <div key={i} style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  borderRadius: 8, padding: "4px 0",
-                }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-                    <span style={{
-                      width: 22, height: 22, borderRadius: 99, flexShrink: 0,
-                      background: "var(--bolao-surface-2)", color: "var(--bolao-ink)",
-                      fontSize: 9.5, fontWeight: 800, fontFamily: '"FWC2026", system-ui, sans-serif',
-                      display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    }}>{initials}</span>
-                    <span style={{
-                      fontSize: 13, color: "var(--bolao-ink-dim)", fontWeight: 500,
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      fontFamily: '"Noto Sans", system-ui, sans-serif',
-                    }}>{p.display_name}</span>
-                  </span>
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0,
+            (data as GroupedPicksData).groups.map((group, gi) => (
+              <div key={group.id}>
+                {multiGroup && (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    marginTop: gi > 0 ? 12 : 0, marginBottom: 6,
                   }}>
-                    {showPts && (
-                      <span style={{
-                        fontFamily: '"FWC2026", system-ui, sans-serif',
-                        fontSize: 11.5, fontWeight: 800, fontVariantNumeric: "tabular-nums",
-                        color: p.total_points! > 0 ? "#FFB300" : "var(--bolao-ink-faint)",
-                      }}>
-                        {p.total_points! > 0 ? `+${p.total_points}` : "0"}
-                      </span>
-                    )}
                     <span style={{
+                      fontSize: 10, fontWeight: 800, textTransform: "uppercase",
+                      letterSpacing: "0.07em", color: "var(--bolao-ink-faint)",
                       fontFamily: '"FWC2026", system-ui, sans-serif',
-                      fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums",
-                      color: exact ? "var(--bolao-green-win)" : correct ? "var(--bolao-lime)" : "var(--bolao-ink-dim)",
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                    }}>
-                      {exact && <span style={{ fontSize: 11 }}>🎯</span>}
-                      {hasGuess ? `${p.home_score}–${p.away_score}` : "—"}
-                    </span>
-                  </span>
+                      whiteSpace: "nowrap",
+                    }}>{group.name}</span>
+                    <span style={{
+                      flex: 1, height: 1, background: "var(--bolao-hairline)",
+                    }} />
+                  </div>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {sectionedPicks(group.picks, homeTeam, awayTeam).map((section, si) => (
+                    <div key={si}>
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        marginTop: si > 0 ? 10 : 0, marginBottom: 4,
+                      }}>
+                        <span style={{
+                          fontSize: 9.5, fontWeight: 700, textTransform: "uppercase",
+                          letterSpacing: "0.06em", color: "var(--bolao-ink-faint)",
+                          fontFamily: '"Noto Sans", system-ui, sans-serif',
+                          whiteSpace: "nowrap",
+                        }}>{section.label}</span>
+                        <span style={{ flex: 1, height: 1, background: "var(--bolao-hairline)" }} />
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {section.picks.map((p) => (
+                          <PickRow
+                            key={p.user_id}
+                            p={p}
+                            currentUserId={(data as GroupedPicksData).currentUserId}
+                            actualOutcome={actualOutcome}
+                            isFinished={isFinished}
+                            homeScore={homeScore}
+                            awayScore={awayScore}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
         </div>
       )}
@@ -681,6 +782,8 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
         {locked && (
           <GroupReveal
             gameId={game.id}
+            homeTeam={translateTeamName(game.home_team)}
+            awayTeam={translateTeamName(game.away_team)}
             homeScore={game.home_score}
             awayScore={game.away_score}
             isFinished={isFinished}

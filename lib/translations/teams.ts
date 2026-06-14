@@ -77,6 +77,7 @@ export const EN_TO_PT: Record<string, string> = {
   "Mali": "Mali",
   "DR Congo": "RD Congo",
   "Congo DR": "RD Congo",
+  "Democratic Republic of the Congo": "RD Congo",
   "Cape Verde Islands": "Cabo Verde",
   "Cape Verde": "Cabo Verde",
   "Mozambique": "Moçambique",

@@ -30,22 +30,34 @@ export async function GET(request: Request) {
   }
 
   // RLS retorna apenas os grupos do usuário autenticado
-  const { data: userGroups } = await supabase.from("groups").select("id");
-  const groupIds = (userGroups ?? []).map((g) => g.id);
+  const { data: userGroups } = await supabase.from("groups").select("id, name");
+  const groups = userGroups ?? [];
 
-  if (groupIds.length === 0) return NextResponse.json({ picks: [] });
+  if (groups.length === 0) return NextResponse.json({ currentUserId: user.id, groups: [] });
 
-  const { data: allMembers } = await supabase
+  const groupIds = groups.map((g) => g.id);
+
+  const { data: allGroupMembers } = await supabase
     .from("group_members")
-    .select("email")
+    .select("group_id, email")
     .in("group_id", groupIds);
 
-  const allEmails = [...new Set((allMembers ?? []).map((m) => m.email))];
+  const groupEmailMap: Record<string, string[]> = {};
+  for (const gm of allGroupMembers ?? []) {
+    if (!groupEmailMap[gm.group_id]) groupEmailMap[gm.group_id] = [];
+    groupEmailMap[gm.group_id].push(gm.email);
+  }
+
+  const allEmails = [...new Set(Object.values(groupEmailMap).flat())];
 
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_url")
+    .select("id, display_name, avatar_url, email")
     .in("email", allEmails.length > 0 ? allEmails : [""]);
+
+  const profileByEmail = Object.fromEntries(
+    (profiles ?? []).filter((p) => p.email).map((p) => [p.email!, p])
+  );
 
   const userIds = (profiles ?? []).map((p) => p.id);
 
@@ -71,17 +83,25 @@ export async function GET(request: Request) {
     (scores ?? []).map((s) => [s.user_id, s])
   );
 
-  const picks = (profiles ?? []).map((profile) => {
-    const pred = predByUserId[profile.id];
-    const score = scoreByUserId[profile.id];
-    return {
-      display_name: profile.display_name,
-      avatar_url: profile.avatar_url ?? null,
-      home_score: pred?.home_score ?? null,
-      away_score: pred?.away_score ?? null,
-      total_points: score?.total_points ?? null,
-    };
-  });
+  const groupedData = groups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    picks: (groupEmailMap[group.id] ?? [])
+      .map((email) => profileByEmail[email])
+      .filter(Boolean)
+      .map((profile) => {
+        const pred = predByUserId[profile.id];
+        const score = scoreByUserId[profile.id];
+        return {
+          user_id: profile.id,
+          display_name: profile.display_name,
+          avatar_url: profile.avatar_url ?? null,
+          home_score: pred?.home_score ?? null,
+          away_score: pred?.away_score ?? null,
+          total_points: score?.total_points ?? null,
+        };
+      }),
+  }));
 
-  return NextResponse.json({ picks });
+  return NextResponse.json({ currentUserId: user.id, groups: groupedData });
 }

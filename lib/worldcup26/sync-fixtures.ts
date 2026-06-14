@@ -9,6 +9,8 @@ function parseLocalDate(localDate: string, stadiumId: string): string {
   return new Date(`${year}-${month}-${day}T${timePart}:00${offset}`).toISOString();
 }
 
+const parseScore = (s: string): number | null => { const n = parseInt(s, 10); return isNaN(n) ? null : n; };
+
 export async function syncFixtures(): Promise<{ synced: number }> {
   const games = await fetchAllGames();
 
@@ -20,17 +22,27 @@ export async function syncFixtures(): Promise<{ synced: number }> {
 
   const gameRows = games
     .filter((g) => g.home_team_name_en && g.away_team_name_en && g.local_date)
-    .map((g) => ({
-    wc26_api_id: g.id,
-    home_team: g.home_team_name_en,
-    away_team: g.away_team_name_en,
-    home_score: g.finished === "TRUE" ? parseInt(g.home_score, 10) : null,
-    away_score: g.finished === "TRUE" ? parseInt(g.away_score, 10) : null,
-    status: mapStatus(g.time_elapsed),
-    stage: mapStage(g.type),
-    group_name: mapGroup(g.group),
-    match_date: parseLocalDate(g.local_date, g.stadium_id),
-  }));
+    .map((g) => {
+      const parsedHome = parseScore(g.home_score);
+      const parsedAway = parseScore(g.away_score);
+      // Only include scores in the upsert when the API returns a valid pair.
+      // Omitting them entirely (instead of writing null) means an API glitch or lag
+      // on a live/just-finished game can never wipe a score that's already in the DB.
+      const scoreFields =
+        parsedHome !== null && parsedAway !== null
+          ? { home_score: parsedHome, away_score: parsedAway }
+          : {};
+      return {
+        wc26_api_id: g.id,
+        home_team: g.home_team_name_en,
+        away_team: g.away_team_name_en,
+        ...scoreFields,
+        status: mapStatus(g.time_elapsed),
+        stage: mapStage(g.type),
+        group_name: mapGroup(g.group),
+        match_date: parseLocalDate(g.local_date, g.stadium_id),
+      };
+    });
 
   const { error } = await supabase
     .from("games")

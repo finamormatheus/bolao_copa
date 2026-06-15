@@ -212,6 +212,7 @@ export async function GET(request: Request) {
     const parseScore = (s: string): number | null => { const n = parseInt(s, 10); return isNaN(n) ? null : n; };
 
     for (const game of games) {
+      if (!game.home_team_name_en || !game.away_team_name_en) continue;
       const status = mapStatus(game.time_elapsed);
       const isLiveOrFinished = LIVE_STATUSES.includes(status) || status === FINISHED_STATUS;
       const wc26Home = isLiveOrFinished ? parseScore(game.home_score) : null;

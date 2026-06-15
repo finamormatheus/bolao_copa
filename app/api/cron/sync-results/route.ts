@@ -110,13 +110,19 @@ async function saveRankingSnapshots(
 async function handleWc26Fallback(
   fdMatches: FDMatch[],
   supabase: ReturnType<typeof createServiceClient>,
-  now: Date
+  now: Date,
+  wc26Error?: unknown
 ): Promise<NextResponse> {
+  const wc26ErrorDetail = wc26Error instanceof Error
+    ? { message: wc26Error.message, name: wc26Error.name }
+    : String(wc26Error ?? "unknown");
+
   if (fdMatches.length === 0) {
     return NextResponse.json({
       message: "worldcup26.ir unavailable; no live matches from football-data.org",
       degraded: true,
       updated: 0,
+      wc26Error: wc26ErrorDetail,
     });
   }
 
@@ -156,6 +162,7 @@ async function handleWc26Fallback(
     message: "worldcup26.ir unavailable; partial sync via football-data.org",
     degraded: true,
     updated,
+    wc26Error: wc26ErrorDetail,
   });
 }
 
@@ -230,7 +237,7 @@ export async function GET(request: Request) {
 
     if (wc26Result.status === "rejected") {
       console.error("[sync-results] worldcup26.ir fetch failed:", wc26Result.reason);
-      return handleWc26Fallback(fdMatches, supabase, now);
+      return handleWc26Fallback(fdMatches, supabase, now, wc26Result.reason);
     }
     const allGames = wc26Result.value;
 

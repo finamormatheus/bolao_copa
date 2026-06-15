@@ -47,6 +47,7 @@ const TEAM_ALIASES: Record<string, string> = {
   "congo dr": "drcongo",
   "dr congo": "drcongo",
   "democratic republic of congo": "drcongo",
+  "democratic republic of the congo": "drcongo",
   "congo democratic republic": "drcongo",
 };
 

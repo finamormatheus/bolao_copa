@@ -29,6 +29,7 @@ async function wc26Fetch<T>(endpoint: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     headers: { Authorization: `Bearer ${process.env.WC26_JWT_TOKEN}` },
     next: { revalidate: 0 },
+    signal: AbortSignal.timeout(30000),
   });
   if (!res.ok) {
     const text = await res.text();

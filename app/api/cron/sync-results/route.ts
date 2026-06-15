@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchAllGames, mapStatus, deriveWinner } from "@/lib/worldcup26/client";
-import { fetchLiveMatches } from "@/lib/api-football/client";
+import { fetchLiveMatches, mapStatus as mapFdStatus } from "@/lib/api-football/client";
 import type { FDMatch } from "@/lib/api-football/types";
 import { syncFixtures } from "@/lib/worldcup26/sync-fixtures";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -105,6 +105,58 @@ async function saveRankingSnapshots(
   }
 }
 
+async function handleWc26Fallback(
+  fdMatches: FDMatch[],
+  supabase: ReturnType<typeof createServiceClient>,
+  now: Date
+): Promise<NextResponse> {
+  if (fdMatches.length === 0) {
+    return NextResponse.json({
+      message: "worldcup26.ir unavailable; no live matches from football-data.org",
+      degraded: true,
+      updated: 0,
+    });
+  }
+
+  const fdByKey = new Map<string, FDMatch>();
+  for (const m of fdMatches) {
+    const key1 = `${normTeam(m.homeTeam.name)}|${normTeam(m.awayTeam.name)}`;
+    const key2 = `${normTeam(m.homeTeam.shortName)}|${normTeam(m.awayTeam.shortName)}`;
+    fdByKey.set(key1, m);
+    if (key2 !== key1) fdByKey.set(key2, m);
+  }
+
+  const { data: activeGames } = await supabase
+    .from("games")
+    .select("id, home_team, away_team")
+    .in("status", ["LIVE", "HT", "NS"])
+    .lte("match_date", now.toISOString());
+
+  let updated = 0;
+  for (const dbGame of activeGames ?? []) {
+    const fdKey = `${normTeam(dbGame.home_team)}|${normTeam(dbGame.away_team)}`;
+    const fdMatch = fdByKey.get(fdKey);
+    if (!fdMatch) continue;
+
+    const fdHome = fdMatch.score.fullTime.home;
+    const fdAway = fdMatch.score.fullTime.away;
+    const status = mapFdStatus(fdMatch.status);
+    const scoreUpdate =
+      fdHome !== null && fdAway !== null
+        ? { home_score: fdHome, away_score: fdAway }
+        : {};
+
+    await supabase.from("games").update({ status, ...scoreUpdate }).eq("id", dbGame.id);
+    updated++;
+  }
+
+  return NextResponse.json({
+    message: "worldcup26.ir unavailable; partial sync via football-data.org",
+    degraded: true,
+    updated,
+  });
+}
+
 function isAuthorized(request: Request): boolean {
   if (process.env.NODE_ENV === "development") return true;
   const auth = request.headers.get("authorization");
@@ -169,19 +221,16 @@ export async function GET(request: Request) {
       fetchLiveMatches(),
     ]);
 
-    if (wc26Result.status === "rejected") {
-      console.error("[sync-results] worldcup26.ir fetch failed:", wc26Result.reason);
-      return NextResponse.json(
-        { error: "Failed to fetch from worldcup26.ir", details: String(wc26Result.reason) },
-        { status: 500 }
-      );
-    }
-    const allGames = wc26Result.value;
-
     if (fdResult.status === "rejected") {
-      console.warn("[sync-results] football-data.org fetch failed (proceeding with wc26 only):", fdResult.reason);
+      console.warn("[sync-results] football-data.org fetch failed:", fdResult.reason);
     }
     const fdMatches: FDMatch[] = fdResult.status === "fulfilled" ? fdResult.value : [];
+
+    if (wc26Result.status === "rejected") {
+      console.error("[sync-results] worldcup26.ir fetch failed:", wc26Result.reason);
+      return handleWc26Fallback(fdMatches, supabase, now);
+    }
+    const allGames = wc26Result.value;
 
     const needsFullSync =
       isTopOfHour || (justStarted?.length ?? 0) > 0 || hasUnscored;

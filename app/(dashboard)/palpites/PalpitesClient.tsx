@@ -196,7 +196,7 @@ export default function PalpitesClient({
                   fontSize: 12.5, fontWeight: 800, letterSpacing: "0.03em", textTransform: "uppercase",
                   background: active ? "var(--bolao-lime)" : "transparent",
                   color: active ? "var(--bolao-ink-dark)" : "var(--bolao-ink-dim)",
-                  cursor: "pointer", whiteSpace: "nowrap",
+                  cursor: "pointer", textAlign: "center", lineHeight: 1.2,
                 }}
               >
                 {VIEW_LABELS[v]}

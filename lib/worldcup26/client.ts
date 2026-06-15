@@ -30,7 +30,7 @@ async function wc26Fetch<T>(endpoint: string, attempt = 1): Promise<T> {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       headers: { Authorization: `Bearer ${process.env.WC26_JWT_TOKEN}` },
       next: { revalidate: 0 },
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -38,9 +38,12 @@ async function wc26Fetch<T>(endpoint: string, attempt = 1): Promise<T> {
     }
     return res.json();
   } catch (err) {
-    // Retries only for transient network errors (ECONNRESET, ETIMEDOUT, etc.),
-    // not for 4xx/5xx HTTP errors which are wrapped as Error above.
-    const isNetworkError = err instanceof TypeError || (err as NodeJS.ErrnoException).code === "ECONNRESET";
+    // Retries only for fast network failures (ECONNRESET). AbortSignal timeout means
+    // the server accepted the connection but stalled — retrying wastes another 20s.
+    const isTimeoutError = err instanceof TypeError &&
+      (err as Error & { cause?: { name?: string } }).cause?.name === "TimeoutError";
+    const isNetworkError = !isTimeoutError &&
+      (err instanceof TypeError || (err as NodeJS.ErrnoException).code === "ECONNRESET");
     if (isNetworkError && attempt < 3) {
       await new Promise((r) => setTimeout(r, attempt * 1000));
       return wc26Fetch<T>(endpoint, attempt + 1);

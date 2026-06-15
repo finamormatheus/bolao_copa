@@ -15,6 +15,7 @@ async function fdFetch<T>(
       "X-Auth-Token": process.env.FOOTBALL_DATA_API_KEY!,
     },
     next: { revalidate: 0 },
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {
@@ -47,6 +48,7 @@ export async function fetchLiveMatches(): Promise<FDMatch[]> {
   const res = await fetch(url, {
     headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_API_KEY! },
     next: { revalidate: 0 },
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) {
     const text = await res.text();

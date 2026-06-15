@@ -52,6 +52,28 @@ VALUES (1, 'slow', NOW())
 ON CONFLICT DO NOTHING;
 
 
+-- ── http_sync_results ────────────────────────────────────────
+-- Wrapper com pg_sleep(20) para deslocar o request 20s dentro do minuto,
+-- evitando o pico de carga no worldcup26.ir que ocorre exatamente em :00.
+-- net.http_get é assíncrono: retorna imediatamente após enfileirar o request,
+-- então o pg_sleep só segura a conexão, não bloqueia o timeout de 35s.
+CREATE OR REPLACE FUNCTION public.http_sync_results()
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  PERFORM pg_sleep(20);
+  PERFORM net.http_get(
+    url                  := public.get_cron_config('base_url') || '/api/cron/sync-results',
+    headers              := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb,
+    timeout_milliseconds := 35000
+  );
+END;
+$$;
+
+
 -- ── activate_fast_sync ───────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.activate_fast_sync()
 RETURNS VOID
@@ -64,16 +86,11 @@ DECLARE
   v_secret TEXT;
 BEGIN
   -- Agenda job rápido (cron.schedule é upsert — sobrescreve se já existir)
+  -- Usa http_sync_results() para disparar com offset de 20s dentro do minuto.
   PERFORM cron.schedule(
     'sync_results_fast',
     '* * * 6,7 *',
-    $job$
-      SELECT net.http_get(
-        url                  := public.get_cron_config('base_url') || '/api/cron/sync-results',
-        headers              := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb,
-        timeout_milliseconds := 35000
-      )
-    $job$
+    $job$ SELECT public.http_sync_results() $job$
   );
 
   -- Remove job lento se existir
@@ -106,17 +123,11 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  -- Agenda job lento
+  -- Agenda job lento (também com offset de 20s via http_sync_results)
   PERFORM cron.schedule(
     'sync_results_slow',
     '*/5 * * 6,7 *',
-    $job$
-      SELECT net.http_get(
-        url                  := public.get_cron_config('base_url') || '/api/cron/sync-results',
-        headers              := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb,
-        timeout_milliseconds := 35000
-      )
-    $job$
+    $job$ SELECT public.http_sync_results() $job$
   );
 
   -- Remove job rápido se existir
@@ -209,11 +220,5 @@ SELECT cron.schedule(
 SELECT cron.schedule(
   'sync_results_slow',
   '*/5 * * 6,7 *',
-  $job$
-    SELECT net.http_get(
-      url                  := public.get_cron_config('base_url') || '/api/cron/sync-results',
-      headers              := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb,
-      timeout_milliseconds := 35000
-    )
-  $job$
+  $job$ SELECT public.http_sync_results() $job$
 );

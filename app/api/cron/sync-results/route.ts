@@ -34,12 +34,15 @@ async function saveRankingSnapshots(
   const { data: groups } = await supabase.from("groups").select("id");
   if (!groups?.length) return;
 
-  // Only include scores from games that kicked off on or before this game_day (UTC).
-  // This prevents a late-night cron run from including next-day game points in today's snapshot.
+  // Only include scores from games that kicked off on or before this game_day (UTC-5).
+  // game_day is already UTC-5 adjusted, so "end of day" = next calendar day at 05:00 UTC
+  // (= 00:00 UTC-5). This covers late-night games (00:00–04:59 UTC) that belong to this day.
+  const [gy, gm, gd] = gameDay.split("-").map(Number);
+  const cutoffEnd = new Date(Date.UTC(gy, gm - 1, gd + 1, 5, 0, 0)).toISOString();
   const { data: eligibleGames } = await supabase
     .from("games")
     .select("id")
-    .lte("match_date", `${gameDay}T23:59:59.999Z`);
+    .lte("match_date", cutoffEnd);
   const eligibleGameIds = (eligibleGames ?? []).map((g) => g.id);
 
   for (const group of groups) {
@@ -181,6 +184,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    const fnStart = Date.now();
     const supabase = createServiceClient();
     const now = new Date();
     // ── Verifica DB antes de chamar a API ─────────────────────────────────────
@@ -431,7 +435,7 @@ export async function GET(request: Request) {
     }
 
     let fixturesSynced: number | undefined;
-    if (shouldSyncFixtures) {
+    if (shouldSyncFixtures && Date.now() - fnStart < 12_000) {
       try {
         const result = await syncFixtures();
         fixturesSynced = result.synced;

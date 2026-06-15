@@ -69,8 +69,9 @@ BEGIN
     '* * * 6,7 *',
     $job$
       SELECT net.http_get(
-        url     := public.get_cron_config('base_url') || '/api/cron/sync-results',
-        headers := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb
+        url                  := public.get_cron_config('base_url') || '/api/cron/sync-results',
+        headers              := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb,
+        timeout_milliseconds := 35000
       )
     $job$
   );
@@ -86,8 +87,9 @@ BEGIN
 
   IF v_url IS NOT NULL AND v_secret IS NOT NULL THEN
     PERFORM net.http_get(
-      url     := v_url || '/api/cron/sync-results',
-      headers := ('{"Authorization":"Bearer ' || v_secret || '"}')::jsonb
+      url                  := v_url || '/api/cron/sync-results',
+      headers              := ('{"Authorization":"Bearer ' || v_secret || '"}')::jsonb,
+      timeout_milliseconds := 35000
     );
   END IF;
 
@@ -110,8 +112,9 @@ BEGIN
     '*/5 * * 6,7 *',
     $job$
       SELECT net.http_get(
-        url     := public.get_cron_config('base_url') || '/api/cron/sync-results',
-        headers := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb
+        url                  := public.get_cron_config('base_url') || '/api/cron/sync-results',
+        headers              := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb,
+        timeout_milliseconds := 35000
       )
     $job$
   );
@@ -208,8 +211,9 @@ SELECT cron.schedule(
   '*/5 * * 6,7 *',
   $job$
     SELECT net.http_get(
-      url     := public.get_cron_config('base_url') || '/api/cron/sync-results',
-      headers := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb
+      url                  := public.get_cron_config('base_url') || '/api/cron/sync-results',
+      headers              := ('{"Authorization":"Bearer ' || public.get_cron_config('cron_secret') || '"}')::jsonb,
+      timeout_milliseconds := 35000
     )
   $job$
 );

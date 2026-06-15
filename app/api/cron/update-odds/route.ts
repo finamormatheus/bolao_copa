@@ -1,3 +1,5 @@
+export const preferredRegion = "gru1";
+
 import { NextResponse } from "next/server";
 import {
   fetchWorldCupOdds,

@@ -1,3 +1,5 @@
+export const preferredRegion = "gru1";
+
 import { NextResponse } from "next/server";
 import { fetchAllGames, mapStatus, deriveWinner } from "@/lib/worldcup26/client";
 import { fetchLiveMatches, mapStatus as mapFdStatus } from "@/lib/api-football/client";

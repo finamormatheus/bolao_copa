@@ -25,17 +25,28 @@ export const STADIUM_UTC_OFFSETS: Record<string, string> = {
 
 const BASE_URL = "https://worldcup26.ir";
 
-async function wc26Fetch<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { Authorization: `Bearer ${process.env.WC26_JWT_TOKEN}` },
-    next: { revalidate: 0 },
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`worldcup26.ir error ${res.status}: ${text}`);
+async function wc26Fetch<T>(endpoint: string, attempt = 1): Promise<T> {
+  try {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      headers: { Authorization: `Bearer ${process.env.WC26_JWT_TOKEN}` },
+      next: { revalidate: 0 },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`worldcup26.ir error ${res.status}: ${text}`);
+    }
+    return res.json();
+  } catch (err) {
+    // Retries only for transient network errors (ECONNRESET, ETIMEDOUT, etc.),
+    // not for 4xx/5xx HTTP errors which are wrapped as Error above.
+    const isNetworkError = err instanceof TypeError || (err as NodeJS.ErrnoException).code === "ECONNRESET";
+    if (isNetworkError && attempt < 3) {
+      await new Promise((r) => setTimeout(r, attempt * 1000));
+      return wc26Fetch<T>(endpoint, attempt + 1);
+    }
+    throw err;
   }
-  return res.json();
 }
 
 export async function fetchAllGames(): Promise<WC26Game[]> {

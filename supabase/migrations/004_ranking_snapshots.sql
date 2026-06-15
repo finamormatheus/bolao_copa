@@ -13,6 +13,7 @@ create table if not exists ranking_snapshots (
 alter table ranking_snapshots enable row level security;
 
 grant select on public.ranking_snapshots to authenticated;
+grant select, insert, update on public.ranking_snapshots to service_role;
 
 -- Members can only read snapshots for their own groups.
 create policy "group members can read ranking snapshots"

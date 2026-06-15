@@ -416,19 +416,19 @@ function GroupReveal({ gameId, homeTeam, awayTeam, homeScore, awayScore, isFinis
   homeScore: number | null; awayScore: number | null; isFinished: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState<GroupedPicksData | "loading" | null>(null);
+  const [data, setData] = useState<GroupedPicksData | "loading" | "error" | null>(null);
 
   async function handleToggle() {
     const wasOpen = open;
     setOpen((v) => !v);
-    if (!wasOpen && data === null) {
+    if (!wasOpen && (data === null || data === "error")) {
       setData("loading");
       try {
         const res = await fetch(`/api/game-picks?gameId=${gameId}`);
         const json = await res.json();
-        setData(res.ok ? json : null);
+        setData(res.ok ? json : "error");
       } catch {
-        setData(null);
+        setData("error");
       }
     }
   }
@@ -437,10 +437,11 @@ function GroupReveal({ gameId, homeTeam, awayTeam, homeScore, awayScore, isFinis
     ? outcome(homeScore, awayScore) : null;
 
   const isLoading = data === "loading";
-  const isEmpty = data !== "loading" && (
+  const isError = data === "error";
+  const isEmpty = !isLoading && !isError && (
     data === null || data.groups.every((g) => g.picks.length === 0)
   );
-  const multiGroup = data !== "loading" && data !== null && data.groups.length > 1;
+  const multiGroup = data !== "loading" && data !== null && data !== "error" && data.groups.length > 1;
 
   return (
     <div style={{ borderTop: "1px solid var(--bolao-hairline)", paddingTop: 10 }}>
@@ -469,6 +470,8 @@ function GroupReveal({ gameId, homeTeam, awayTeam, homeScore, awayScore, isFinis
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 0 }}>
           {isLoading ? (
             <p style={{ fontSize: 12, color: "var(--bolao-ink-faint)", margin: 0 }}>Carregando...</p>
+          ) : isError ? (
+            <p style={{ fontSize: 12, color: "var(--bolao-ink-faint)", margin: 0 }}>Erro ao carregar palpites. Tente novamente.</p>
           ) : isEmpty ? (
             <p style={{ fontSize: 12, color: "var(--bolao-ink-faint)", margin: 0 }}>Nenhum palpite encontrado.</p>
           ) : (

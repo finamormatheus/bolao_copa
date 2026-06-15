@@ -95,7 +95,7 @@ async function saveRankingSnapshots(
         points,
       }));
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("ranking_snapshots")
       .upsert(rows, { onConflict: "group_id,game_day,user_id" });
 

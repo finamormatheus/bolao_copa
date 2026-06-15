@@ -288,6 +288,41 @@ export interface Database {
         };
         Relationships: [];
       };
+      ranking_snapshots: {
+        Row: {
+          group_id: string;
+          game_day: string;
+          user_id: string;
+          rank: number;
+          points: number;
+          created_at: string;
+        };
+        Insert: {
+          group_id: string;
+          game_day: string;
+          user_id: string;
+          rank: number;
+          points: number;
+          created_at?: string;
+        };
+        Update: {
+          group_id?: string;
+          game_day?: string;
+          user_id?: string;
+          rank?: number;
+          points?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ranking_snapshots_group_id_fkey";
+            columns: ["group_id"];
+            isOneToOne: false;
+            referencedRelation: "groups";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -312,3 +347,4 @@ export type GameScore = Database["public"]["Tables"]["game_scores"]["Row"];
 export type Group = Database["public"]["Tables"]["groups"]["Row"];
 export type GroupMember = Database["public"]["Tables"]["group_members"]["Row"];
 export type ChampionPick = Database["public"]["Tables"]["champion_picks"]["Row"];
+export type RankingSnapshot = Database["public"]["Tables"]["ranking_snapshots"]["Row"];

@@ -181,7 +181,7 @@ export default function PalpitesClient({
       {/* View toggle */}
       <div style={{ marginBottom: 18 }}>
         <div style={{
-          display: "inline-flex", padding: 4, gap: 4, borderRadius: 12,
+          display: "flex", padding: 4, gap: 4, borderRadius: 12,
           background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)",
         }}>
           {(["crono", "grupos", "encerrados"] as const).map((v) => {
@@ -191,12 +191,12 @@ export default function PalpitesClient({
                 key={v}
                 onClick={() => handleViewChange(v)}
                 style={{
-                  border: "none", borderRadius: 9, padding: "8px 16px",
+                  flex: 1, border: "none", borderRadius: 9, padding: "8px 10px",
                   fontFamily: '"FWC2026", system-ui, sans-serif',
                   fontSize: 12.5, fontWeight: 800, letterSpacing: "0.03em", textTransform: "uppercase",
                   background: active ? "var(--bolao-lime)" : "transparent",
                   color: active ? "var(--bolao-ink-dark)" : "var(--bolao-ink-dim)",
-                  cursor: "pointer",
+                  cursor: "pointer", whiteSpace: "nowrap",
                 }}
               >
                 {VIEW_LABELS[v]}

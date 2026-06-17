@@ -59,7 +59,7 @@ export async function fetchAllGames(): Promise<WC26Game[]> {
 
 /** Converte time_elapsed da worldcup26.ir para o padrão interno */
 export function mapStatus(timeElapsed: string): string {
-  switch (timeElapsed) {
+  switch (timeElapsed.toLowerCase()) {
     case "notstarted":
       return "NS";
     case "halftime":

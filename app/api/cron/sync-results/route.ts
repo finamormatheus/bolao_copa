@@ -275,16 +275,21 @@ export async function GET(request: Request) {
 
     for (const game of games) {
       if (!game.home_team_name_en || !game.away_team_name_en) continue;
-      const status = mapStatus(game.time_elapsed);
-      const isLiveOrFinished = LIVE_STATUSES.includes(status) || status === FINISHED_STATUS;
-      const wc26Home = isLiveOrFinished ? parseScore(game.home_score) : null;
-      const wc26Away = isLiveOrFinished ? parseScore(game.away_score) : null;
 
       // Busca placar do football-data para este jogo (se disponível)
       const fdKey = `${normTeam(game.home_team_name_en)}|${normTeam(game.away_team_name_en)}`;
       const fdMatch = fdByKey.get(fdKey);
       const fdHome = fdMatch?.score.fullTime.home ?? null;
       const fdAway = fdMatch?.score.fullTime.away ?? null;
+
+      const wc26Status = mapStatus(game.time_elapsed);
+      // When wc26 says not started but football-data has the match live, trust football-data for status
+      const fdStatus = fdMatch ? mapFdStatus(fdMatch.status) : null;
+      const status = (wc26Status === "NS" && fdStatus && fdStatus !== "NS") ? fdStatus : wc26Status;
+
+      const isLiveOrFinished = LIVE_STATUSES.includes(status) || status === FINISHED_STATUS;
+      const wc26Home = isLiveOrFinished ? parseScore(game.home_score) : null;
+      const wc26Away = isLiveOrFinished ? parseScore(game.away_score) : null;
 
       // Usa o placar mais atualizado entre as duas fontes
       const { home: bestHome, away: bestAway } = bestScores(wc26Home, wc26Away, fdHome, fdAway);

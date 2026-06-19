@@ -9,6 +9,12 @@ function parseLocalDate(localDate: string, stadiumId: string): string {
   return new Date(`${year}-${month}-${day}T${timePart}:00${offset}`).toISOString();
 }
 
+// WC26 API reports wrong kickoff times for these games; correct values verified manually via football-data.org
+// Keys are WC26 game IDs (g.id). FD match ID noted for reference.
+const MATCH_DATE_OVERRIDES: Record<string, string> = {
+  "29": "2026-06-20T00:30:00.000Z", // Brazil x Haiti — FD id 537341
+};
+
 const parseScore = (s: string): number | null => { const n = parseInt(s, 10); return isNaN(n) ? null : n; };
 
 export async function syncFixtures(): Promise<{ synced: number }> {
@@ -32,6 +38,7 @@ export async function syncFixtures(): Promise<{ synced: number }> {
         parsedHome !== null && parsedAway !== null
           ? { home_score: parsedHome, away_score: parsedAway }
           : {};
+      const match_date = MATCH_DATE_OVERRIDES[g.id] ?? parseLocalDate(g.local_date, g.stadium_id);
       return {
         wc26_api_id: g.id,
         home_team: g.home_team_name_en,
@@ -40,7 +47,7 @@ export async function syncFixtures(): Promise<{ synced: number }> {
         status: mapStatus(g.time_elapsed),
         stage: mapStage(g.type),
         group_name: mapGroup(g.group),
-        match_date: parseLocalDate(g.local_date, g.stadium_id),
+        match_date,
       };
     });
 

@@ -2,7 +2,7 @@ export const preferredRegion = "gru1";
 
 import { NextResponse } from "next/server";
 import { fetchAllGames, mapStatus, deriveWinner } from "@/lib/worldcup26/client";
-import { fetchLiveMatches, mapStatus as mapFdStatus } from "@/lib/api-football/client";
+import { fetchLiveMatches, fetchMatchesByDate, mapStatus as mapFdStatus } from "@/lib/api-football/client";
 import type { FDMatch } from "@/lib/api-football/types";
 import { syncFixtures } from "@/lib/worldcup26/sync-fixtures";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -227,17 +227,32 @@ export async function GET(request: Request) {
     }
 
     // ── Busca jogos de ambas as APIs em paralelo ──────────────────────────────
-    // worldcup26.ir retorna os 104 jogos; football-data só retorna jogos ao vivo.
+    // worldcup26.ir retorna os 104 jogos; football-data retorna ao vivo + hoje.
+    // Buscamos jogos de hoje para pegar partidas que a wc26 marca erroneamente
+    // como "notstarted" mas que a FD já reporta como FINISHED.
     // allSettled garante que uma falha em uma fonte não aborta o sync.
-    const [wc26Result, fdResult] = await Promise.allSettled([
+    const todayUtc = now.toISOString().split("T")[0];
+    const [wc26Result, fdLiveResult, fdTodayResult] = await Promise.allSettled([
       fetchAllGames(),
       fetchLiveMatches(),
+      fetchMatchesByDate(todayUtc),
     ]);
 
-    if (fdResult.status === "rejected") {
-      console.warn("[sync-results] football-data.org fetch failed:", fdResult.reason);
+    if (fdLiveResult.status === "rejected") {
+      console.warn("[sync-results] football-data.org live fetch failed:", fdLiveResult.reason);
     }
-    const fdMatches: FDMatch[] = fdResult.status === "fulfilled" ? fdResult.value : [];
+    if (fdTodayResult.status === "rejected") {
+      console.warn("[sync-results] football-data.org today fetch failed:", fdTodayResult.reason);
+    }
+    // Merge: hoje sobrescreve ao vivo (status mais atualizado); dedup por ID
+    const fdMatchMap = new Map<number, FDMatch>();
+    for (const m of (fdLiveResult.status === "fulfilled" ? fdLiveResult.value : [])) {
+      fdMatchMap.set(m.id, m);
+    }
+    for (const m of (fdTodayResult.status === "fulfilled" ? fdTodayResult.value : [])) {
+      fdMatchMap.set(m.id, m);
+    }
+    const fdMatches: FDMatch[] = Array.from(fdMatchMap.values());
 
     if (wc26Result.status === "rejected") {
       console.error("[sync-results] worldcup26.ir fetch failed:", wc26Result.reason);

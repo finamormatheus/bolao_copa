@@ -16,14 +16,20 @@ const GROUP_COLORS: Record<string, string> = {
 
 const STAGE_PT: Record<string, string> = {
   "Group Stage":    "Fase de Grupos",
+  "Round of 32":    "Rodada de 32",
+  "r32":            "Rodada de 32",
   "last_32":        "Rodada de 32",
   "LAST_32":        "Rodada de 32",
-  "last_16":        "Oitavas de Final",
-  "LAST_16":        "Oitavas de Final",
-  "Round of 16":    "Oitavas de Final",
-  "Quarter-finals": "Quartas de Final",
-  "Semi-finals":    "Semifinal",
-  "3rd Place":      "3º Lugar",
+  "Round of 16":    "Oitavas de final",
+  "r16":            "Oitavas de final",
+  "last_16":        "Oitavas de final",
+  "LAST_16":        "Oitavas de final",
+  "Quarter-finals": "Quartas de final",
+  "qf":             "Quartas de final",
+  "Semi-finals":    "Semi final",
+  "sf":             "Semi final",
+  "3rd Place":      "Terceiro lugar",
+  "third":          "Terceiro lugar",
   "Final":          "Final",
 };
 

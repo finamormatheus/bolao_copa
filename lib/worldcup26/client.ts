@@ -77,10 +77,15 @@ export function mapStage(type: string): string {
   const map: Record<string, string> = {
     group: "Group Stage",
     round_of_32: "Round of 32",
+    r32: "Round of 32",
     round_of_16: "Round of 16",
+    r16: "Round of 16",
     quarter_finals: "Quarter-finals",
+    qf: "Quarter-finals",
     semi_finals: "Semi-finals",
+    sf: "Semi-finals",
     third_place: "3rd Place",
+    third: "3rd Place",
     final: "Final",
   };
   return map[type] ?? type;

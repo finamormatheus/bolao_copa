@@ -27,7 +27,7 @@ export async function syncFixtures(): Promise<{ synced: number }> {
   const supabase = createServiceClient();
 
   const gameRows = games
-    .filter((g) => g.home_team_name_en && g.away_team_name_en && g.local_date)
+    .filter((g) => g.local_date)
     .map((g) => {
       const parsedHome = parseScore(g.home_score);
       const parsedAway = parseScore(g.away_score);
@@ -41,8 +41,8 @@ export async function syncFixtures(): Promise<{ synced: number }> {
       const match_date = MATCH_DATE_OVERRIDES[g.id] ?? parseLocalDate(g.local_date, g.stadium_id);
       return {
         wc26_api_id: g.id,
-        home_team: g.home_team_name_en,
-        away_team: g.away_team_name_en,
+        home_team: g.home_team_name_en || "A definir",
+        away_team: g.away_team_name_en || "A definir",
         ...scoreFields,
         status: mapStatus(g.time_elapsed),
         stage: mapStage(g.type),

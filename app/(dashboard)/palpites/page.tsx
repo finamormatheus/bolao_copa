@@ -34,8 +34,8 @@ export default async function PalpitesPage() {
 
   const teamSet = new Set<string>();
   for (const game of allGames ?? []) {
-    if (game.home_team !== "TBD") teamSet.add(game.home_team);
-    if (game.away_team !== "TBD") teamSet.add(game.away_team);
+    if (game.home_team !== "TBD" && game.home_team !== "A definir") teamSet.add(game.home_team);
+    if (game.away_team !== "TBD" && game.away_team !== "A definir") teamSet.add(game.away_team);
   }
   const teams = Array.from(teamSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
 

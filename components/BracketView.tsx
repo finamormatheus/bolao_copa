@@ -292,6 +292,9 @@ export default function BracketView({ games, odds, predictions, scores, onSave }
   const [selId, setSelId] = useState<string | null>(null);
   const scrollCooldown = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const touchIntent = useRef<"horizontal" | "vertical" | null>(null);
 
   const knockoutGames = useMemo(() =>
     games.filter((g) => {
@@ -378,6 +381,52 @@ export default function BracketView({ games, odds, predictions, scores, onSave }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // Mobile swipe navigates phases with the same glide animation
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      touchIntent.current = null;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const dx = e.touches[0].clientX - touchStartX.current;
+      const dy = e.touches[0].clientY - touchStartY.current;
+      if (touchIntent.current === null) {
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5) {
+          touchIntent.current = "horizontal";
+        } else if (Math.abs(dy) > 5) {
+          touchIntent.current = "vertical";
+        }
+      }
+      // Prevent vertical scroll while the user is doing a horizontal swipe
+      if (touchIntent.current === "horizontal") e.preventDefault();
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (touchIntent.current !== "horizontal") return;
+      if (scrollCooldown.current) return;
+      const dx = e.changedTouches[0].clientX - touchStartX.current;
+      if (Math.abs(dx) < 50) return; // too small to be intentional
+      const dir = dx < 0 ? 1 : -1;
+      setFocus((f) => Math.max(0, Math.min(PHASES.length - 1, f + dir)));
+      scrollCooldown.current = true;
+      setTimeout(() => { scrollCooldown.current = false; }, 600);
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
   }, []);
 
   return (

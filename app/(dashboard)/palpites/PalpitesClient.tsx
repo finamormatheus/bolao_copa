@@ -181,9 +181,14 @@ export default function PalpitesClient({
       )}
 
       {/* View toggle */}
+      <style>{`
+        @media (max-width: 479px) {
+          .bolao-view-btn { min-width: calc(50% - 6px) !important; }
+        }
+      `}</style>
       <div style={{ marginBottom: 18 }}>
         <div style={{
-          display: "flex", padding: 4, gap: 4, borderRadius: 12,
+          display: "flex", flexWrap: "wrap", padding: 4, gap: 4, borderRadius: 12,
           background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)",
         }}>
           {(["crono", "grupos", "chave", "encerrados"] as const).map((v) => {
@@ -191,6 +196,7 @@ export default function PalpitesClient({
             return (
               <button
                 key={v}
+                className="bolao-view-btn"
                 onClick={() => handleViewChange(v)}
                 style={{
                   flex: 1, border: "none", borderRadius: 9, padding: "8px 10px",

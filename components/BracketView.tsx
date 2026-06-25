@@ -248,13 +248,13 @@ function buildBracket(games: Game[], focus: number): BracketSlot[] {
 
   // 1. Focused phase: evenly spaced (this is the "compact base")
   byPhase[focus].forEach((_, i) => {
-    topYMap[focus][i] = HEADER_H + PAD + i * pitch;
+    topYMap[focus][i] = PAD + i * pitch;
   });
 
   // 2. Expand rightward: each parent Y = avg of its two children
   for (let p = focus + 1; p < PHASES.length; p++) {
     byPhase[p].forEach((_, i) => {
-      const y1 = topYMap[p - 1][i * 2] ?? (HEADER_H + PAD);
+      const y1 = topYMap[p - 1][i * 2] ?? PAD;
       const y2 = topYMap[p - 1][i * 2 + 1] ?? y1;
       topYMap[p][i] = (y1 + y2) / 2;
     });
@@ -263,7 +263,7 @@ function buildBracket(games: Game[], focus: number): BracketSlot[] {
   // 3. Collapse leftward: each card nests into its parent's Y in the next phase
   for (let p = focus - 1; p >= 0; p--) {
     byPhase[p].forEach((_, i) => {
-      topYMap[p][i] = topYMap[p + 1][Math.floor(i / 2)] ?? (HEADER_H + PAD);
+      topYMap[p][i] = topYMap[p + 1][Math.floor(i / 2)] ?? PAD;
     });
   }
 
@@ -318,8 +318,8 @@ export default function BracketView({ games, odds, predictions, scores, onSave }
 
   // Height based on actual max card position in the current layout, not always R32 count
   const fieldHeight = useMemo(() => {
-    if (slots.length === 0) return HEADER_H + PAD * 2 + CH;
-    let maxBottom = HEADER_H + PAD + CH;
+    if (slots.length === 0) return PAD * 2 + CH;
+    let maxBottom = PAD + CH;
     for (const s of slots) {
       maxBottom = Math.max(maxBottom, s.topY + CH);
     }
@@ -332,12 +332,12 @@ export default function BracketView({ games, odds, predictions, scores, onSave }
   const focusedSlots = useMemo(() => slots.filter((s) => s.phase === focus), [slots, focus]);
 
   const focusedMinY = useMemo(() =>
-    focusedSlots.length > 0 ? Math.min(...focusedSlots.map((s) => s.topY)) : HEADER_H + PAD,
+    focusedSlots.length > 0 ? Math.min(...focusedSlots.map((s) => s.topY)) : PAD,
     [focusedSlots]
   );
 
   const focusedMaxY = useMemo(() => {
-    if (focusedSlots.length === 0) return HEADER_H + PAD;
+    if (focusedSlots.length === 0) return PAD;
     let maxY = Math.max(...focusedSlots.map((s) => s.topY));
     if (thirdPlaceGame && finalSlot) {
       maxY = Math.max(maxY, finalSlot.topY + CH + THIRD_PLACE_GAP);
@@ -347,8 +347,8 @@ export default function BracketView({ games, odds, predictions, scores, onSave }
 
   // Container grows/shrinks to the focused phase's content — no internal vertical scroll.
   // Formula: header + translate-corrected card bottom + bottom padding.
-  const containerHeight = 2 * HEADER_H + 2 * PAD + (focusedMaxY - focusedMinY) + CH;
-  const verticalOffset = focusedMinY - (HEADER_H + PAD);
+  const containerHeight = HEADER_H + 2 * PAD + (focusedMaxY - focusedMinY) + CH;
+  const verticalOffset = focusedMinY - PAD;
 
   const fieldWidth = PHASES.length * (CW + CG) - CG + PAD * 2;
 

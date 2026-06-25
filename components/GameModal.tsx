@@ -277,6 +277,14 @@ export default function GameModal({ game, odds, prediction, score, onSave, onClo
   const [withinLock, setWithinLock] = useState(false);
 
   const isKnockout = !!(game.stage && KNOCKOUT_STAGES.has(game.stage));
+
+  const homeNum = parseInt(homeInput);
+  const awayNum = parseInt(awayInput);
+  const scoreKnown = homeInput !== "" && awayInput !== "" && !isNaN(homeNum) && !isNaN(awayNum);
+  const scoredWinner: "home" | "away" | null = scoreKnown && homeNum !== awayNum
+    ? (homeNum > awayNum ? "home" : "away")
+    : null;
+  const effectiveAdvancePick = scoredWinner ?? advancePick;
   const homeTeam = translateTeamName(game.home_team);
   const awayTeam = translateTeamName(game.away_team);
   const isTBD = game.home_team === "TBD" || game.away_team === "TBD" ||
@@ -321,10 +329,10 @@ export default function GameModal({ game, odds, prediction, score, onSave, onClo
     const home = parseInt(homeInput);
     const away = parseInt(awayInput);
     if (isNaN(home) || isNaN(away)) { setSaveState("invalid"); setTimeout(() => setSaveState("idle"), 1800); return; }
-    if (isKnockout && advancePick === null) { setSaveState("invalid"); setTimeout(() => setSaveState("idle"), 1800); return; }
+    if (isKnockout && effectiveAdvancePick === null) { setSaveState("invalid"); setTimeout(() => setSaveState("idle"), 1800); return; }
     startTransition(async () => {
       try {
-        await onSave(game.id, home, away, isKnockout ? advancePick : null);
+        await onSave(game.id, home, away, isKnockout ? effectiveAdvancePick : null);
         setSaveState("saved");
         setTimeout(() => setSaveState("idle"), 1800);
       } catch {
@@ -437,7 +445,8 @@ export default function GameModal({ game, odds, prediction, score, onSave, onClo
                 <AdvancePicker
                   homeTeam={homeTeam} awayTeam={awayTeam}
                   homeLogoUrl={game.home_team_logo} awayLogoUrl={game.away_team_logo}
-                  value={advancePick} onChange={setAdvancePick}
+                  value={effectiveAdvancePick} onChange={setAdvancePick}
+                  disabled={scoredWinner !== null}
                 />
               )}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>

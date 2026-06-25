@@ -625,11 +625,19 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
 
   const isKnockout = !!(game.stage && KNOCKOUT_STAGES.has(game.stage));
 
+  const homeNum = parseInt(homeInput);
+  const awayNum = parseInt(awayInput);
+  const scoreKnown = homeInput !== "" && awayInput !== "" && !isNaN(homeNum) && !isNaN(awayNum);
+  const scoredWinner: "home" | "away" | null = scoreKnown && homeNum !== awayNum
+    ? (homeNum > awayNum ? "home" : "away")
+    : null;
+  const effectiveAdvancePick = scoredWinner ?? advancePick;
+
   const isSaved =
     prediction !== null &&
     prediction.home_score === parseInt(homeInput) &&
     prediction.away_score === parseInt(awayInput) &&
-    (!isKnockout || (prediction.advance_pick ?? null) === advancePick);
+    (!isKnockout || (prediction.advance_pick ?? null) === effectiveAdvancePick);
 
   useEffect(() => {
     const check = () => setWithinLock(isWithinLock(game.match_date));
@@ -657,14 +665,14 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
       setTimeout(() => setSaveState("idle"), 1800);
       return;
     }
-    if (isKnockout && advancePick === null) {
+    if (isKnockout && effectiveAdvancePick === null) {
       setSaveState("invalid");
       setTimeout(() => setSaveState("idle"), 1800);
       return;
     }
     startTransition(async () => {
       try {
-        await onSave(game.id, home, away, isKnockout ? advancePick : null);
+        await onSave(game.id, home, away, isKnockout ? effectiveAdvancePick : null);
         setSaveState("saved");
         setTimeout(() => setSaveState("idle"), 1800);
       } catch {
@@ -786,8 +794,9 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
                 awayTeam={translateTeamName(game.away_team)}
                 homeLogoUrl={game.home_team_logo}
                 awayLogoUrl={game.away_team_logo}
-                value={advancePick}
+                value={effectiveAdvancePick}
                 onChange={setAdvancePick}
+                disabled={scoredWinner !== null}
               />
             )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>

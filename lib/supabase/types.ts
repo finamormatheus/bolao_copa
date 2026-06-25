@@ -101,6 +101,8 @@ export interface Database {
           odds_fetched_1h: boolean;
           updated_at: string;
           wc26_api_id: string | null;
+          knockout_winner: string | null;
+          bracket_slot: number | null;
         };
         Insert: {
           id?: string;
@@ -122,6 +124,8 @@ export interface Database {
           odds_fetched_1h?: boolean;
           updated_at?: string;
           wc26_api_id?: string | null;
+          knockout_winner?: string | null;
+          bracket_slot?: number | null;
         };
         Update: {
           id?: string;
@@ -143,6 +147,8 @@ export interface Database {
           odds_fetched_1h?: boolean;
           updated_at?: string;
           wc26_api_id?: string | null;
+          knockout_winner?: string | null;
+          bracket_slot?: number | null;
         };
         Relationships: [];
       };
@@ -188,6 +194,7 @@ export interface Database {
           game_id: string;
           home_score: number;
           away_score: number;
+          advance_pick: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -197,6 +204,7 @@ export interface Database {
           game_id: string;
           home_score: number;
           away_score: number;
+          advance_pick?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -206,6 +214,7 @@ export interface Database {
           game_id?: string;
           home_score?: number;
           away_score?: number;
+          advance_pick?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -226,6 +235,7 @@ export interface Database {
           game_id: string;
           base_points: number;
           odds_bonus: number;
+          advance_bonus: number;
           total_points: number;
           breakdown: Json | null;
           calculated_at: string;
@@ -236,6 +246,7 @@ export interface Database {
           game_id: string;
           base_points: number;
           odds_bonus: number;
+          advance_bonus?: number;
           breakdown?: Json | null;
           calculated_at?: string;
         };
@@ -245,6 +256,7 @@ export interface Database {
           game_id?: string;
           base_points?: number;
           odds_bonus?: number;
+          advance_bonus?: number;
           breakdown?: Json | null;
           calculated_at?: string;
         };

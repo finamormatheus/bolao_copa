@@ -66,7 +66,7 @@ export async function GET(request: Request) {
   const [{ data: predictions }, { data: scores }] = await Promise.all([
     serviceClient
       .from("predictions")
-      .select("user_id, home_score, away_score")
+      .select("user_id, home_score, away_score, advance_pick")
       .eq("game_id", gameId)
       .in("user_id", userIds.length > 0 ? userIds : [""]),
     serviceClient
@@ -98,6 +98,7 @@ export async function GET(request: Request) {
           avatar_url: profile.avatar_url ?? null,
           home_score: pred?.home_score ?? null,
           away_score: pred?.away_score ?? null,
+          advance_pick: pred?.advance_pick ?? null,
           total_points: score?.total_points ?? null,
         };
       }),

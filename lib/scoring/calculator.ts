@@ -1,11 +1,13 @@
 export interface ScoreBreakdown {
   exact: boolean;
   correct: boolean;
+  correctAdvance: boolean;
 }
 
 export interface ScoreResult {
   basePoints: number;
   exactBonus: number;
+  advanceBonus: number;
   totalPoints: number;
   breakdown: ScoreBreakdown;
 }
@@ -33,7 +35,9 @@ export function probabilityToPoints(probability: number): number {
 export function calculateScore(
   predicted: { home: number; away: number },
   actual: { home: number; away: number },
-  lockedProbs?: { home: number; draw: number; away: number } | null
+  lockedProbs?: { home: number; draw: number; away: number } | null,
+  advancePick?: "home" | "away" | null,
+  actualWinner?: "home" | "away" | null
 ): ScoreResult {
   const isExact =
     predicted.home === actual.home && predicted.away === actual.away;
@@ -42,13 +46,19 @@ export function calculateScore(
   const actualOutcome = getOutcome(actual.home, actual.away);
   const correctOutcome = predictedOutcome === actualOutcome;
 
+  const correctAdvance =
+    advancePick != null && actualWinner != null && advancePick === actualWinner;
+
   const breakdown: ScoreBreakdown = {
     exact: isExact,
     correct: correctOutcome,
+    correctAdvance,
   };
 
+  const advanceBonus = correctAdvance ? 3 : 0;
+
   if (!correctOutcome) {
-    return { basePoints: 0, exactBonus: 0, totalPoints: 0, breakdown };
+    return { basePoints: 0, exactBonus: 0, advanceBonus, totalPoints: advanceBonus, breakdown };
   }
 
   const prob = lockedProbs ? lockedProbs[predictedOutcome] : null;
@@ -58,7 +68,8 @@ export function calculateScore(
   return {
     basePoints,
     exactBonus,
-    totalPoints: basePoints + exactBonus,
+    advanceBonus,
+    totalPoints: basePoints + exactBonus + advanceBonus,
     breakdown,
   };
 }

@@ -65,7 +65,69 @@ function isWithinLock(dateStr: string): boolean {
   return new Date(dateStr).getTime() - Date.now() <= LOCK_MINUTES * 60_000;
 }
 
+const KNOCKOUT_STAGES = new Set([
+  "Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final", "3rd Place",
+  "r32", "r16", "qf", "sf", "third", "last_32", "last_16", "LAST_32", "LAST_16",
+]);
+
 /* ---- sub-components ---- */
+
+export function AdvancePicker({
+  homeTeam, awayTeam, homeLogoUrl, awayLogoUrl,
+  value, onChange, disabled,
+}: {
+  homeTeam: string; awayTeam: string;
+  homeLogoUrl: string | null; awayLogoUrl: string | null;
+  value: "home" | "away" | null;
+  onChange: (v: "home" | "away") => void;
+  disabled?: boolean;
+}) {
+  const teams: { key: "home" | "away"; name: string; logoUrl: string | null }[] = [
+    { key: "home", name: homeTeam, logoUrl: homeLogoUrl },
+    { key: "away", name: awayTeam, logoUrl: awayLogoUrl },
+  ];
+  return (
+    <div>
+      <div style={{
+        fontSize: 9.5, fontWeight: 700, textTransform: "uppercase",
+        color: "var(--bolao-ink-faint)", letterSpacing: "0.05em",
+        fontFamily: '"Noto Sans", system-ui, sans-serif', marginBottom: 6,
+      }}>
+        Quem avança?
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {teams.map((t) => {
+          const selected = value === t.key;
+          return (
+            <button
+              key={t.key}
+              disabled={disabled}
+              onClick={() => onChange(t.key)}
+              style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                padding: "8px 10px", borderRadius: 10,
+                background: selected ? "rgba(173,235,3,0.08)" : "rgba(247,247,248,0.04)",
+                border: selected ? "1px solid var(--bolao-lime)" : "1px solid var(--bolao-hairline)",
+                cursor: disabled ? "default" : "pointer",
+                transition: "border-color .15s, background .15s",
+              }}
+            >
+              <FlagChip teamName={t.name} logoUrl={t.logoUrl} size={27} />
+              <span style={{
+                fontFamily: '"FWC2026", system-ui, sans-serif',
+                fontSize: 12, fontWeight: 800, textTransform: "uppercase",
+                color: selected ? "var(--bolao-lime)" : "var(--bolao-ink-dim)",
+                letterSpacing: "0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {t.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function FlagChip({ teamName, logoUrl, size = 46 }: { teamName: string; logoUrl: string | null; size?: number }) {
   const slug = TEAM_FLAGS[teamName] ?? null;
@@ -546,7 +608,7 @@ interface GameCardProps {
   odds: Odds | null;
   prediction: Prediction | null;
   score: GameScore | null;
-  onSave: (gameId: string, home: number, away: number) => Promise<void>;
+  onSave: (gameId: string, home: number, away: number, advancePick?: "home" | "away" | null) => Promise<void>;
   groupStripe?: boolean;
   showDate?: boolean;
 }
@@ -554,14 +616,20 @@ interface GameCardProps {
 export default function GameCard({ game, odds, prediction, score, onSave, groupStripe = true, showDate = false }: GameCardProps) {
   const [homeInput, setHomeInput] = useState(prediction?.home_score?.toString() ?? "");
   const [awayInput, setAwayInput] = useState(prediction?.away_score?.toString() ?? "");
+  const [advancePick, setAdvancePick] = useState<"home" | "away" | null>(
+    (prediction?.advance_pick as "home" | "away" | null) ?? null
+  );
   const [, startTransition] = useTransition();
   const [saveState, setSaveState] = useState<"idle" | "saved" | "invalid" | "error">("idle");
   const [withinLock, setWithinLock] = useState(false);
 
+  const isKnockout = !!(game.stage && KNOCKOUT_STAGES.has(game.stage));
+
   const isSaved =
     prediction !== null &&
     prediction.home_score === parseInt(homeInput) &&
-    prediction.away_score === parseInt(awayInput);
+    prediction.away_score === parseInt(awayInput) &&
+    (!isKnockout || (prediction.advance_pick ?? null) === advancePick);
 
   useEffect(() => {
     const check = () => setWithinLock(isWithinLock(game.match_date));
@@ -589,9 +657,14 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
       setTimeout(() => setSaveState("idle"), 1800);
       return;
     }
+    if (isKnockout && advancePick === null) {
+      setSaveState("invalid");
+      setTimeout(() => setSaveState("idle"), 1800);
+      return;
+    }
     startTransition(async () => {
       try {
-        await onSave(game.id, home, away);
+        await onSave(game.id, home, away, isKnockout ? advancePick : null);
         setSaveState("saved");
         setTimeout(() => setSaveState("idle"), 1800);
       } catch {
@@ -602,8 +675,11 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
   }
 
   const resultPts = isFinished && score ? score.total_points : null;
-  const isExact = isFinished && score
-    ? !!(score.breakdown as { exact?: boolean } | null)?.exact : false;
+  const breakdown = isFinished && score
+    ? (score.breakdown as { exact?: boolean; correctAdvance?: boolean } | null)
+    : null;
+  const isExact = !!(breakdown?.exact);
+  const isCorrectAdvance = !!(breakdown?.correctAdvance);
 
   const group = groupLetter(game.group_name);
   const groupColor = group ? (GROUP_COLORS[group] ?? null) : null;
@@ -704,6 +780,16 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
                 awayProb={odds!.away_win_prob}
               />
             )}
+            {isKnockout && (
+              <AdvancePicker
+                homeTeam={translateTeamName(game.home_team)}
+                awayTeam={translateTeamName(game.away_team)}
+                homeLogoUrl={game.home_team_logo}
+                awayLogoUrl={game.away_team_logo}
+                value={advancePick}
+                onChange={setAdvancePick}
+              />
+            )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <span style={{
                 fontSize: 12, color: "var(--bolao-ink-faint)",
@@ -767,6 +853,16 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
                     fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
                     color: "var(--bolao-green-win)", letterSpacing: "0.04em",
                   }}>🎯 Cravou!</span>
+                )}
+                {isKnockout && prediction?.advance_pick != null && (
+                  <span style={{
+                    fontFamily: '"FWC2026", system-ui, sans-serif',
+                    fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
+                    color: isCorrectAdvance ? "var(--bolao-lime)" : "var(--bolao-red)",
+                    letterSpacing: "0.04em",
+                  }}>
+                    {isCorrectAdvance ? "✓ Avança" : "✕ Avança"}
+                  </span>
                 )}
                 <span style={{
                   fontFamily: '"FWC2026", system-ui, sans-serif',

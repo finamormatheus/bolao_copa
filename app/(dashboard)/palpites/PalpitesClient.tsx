@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import GameCard from "@/components/GameCard";
+import BracketView from "@/components/BracketView";
 import ChampionPicker from "@/components/ChampionPicker";
 import type { Game, Odds, Prediction, GameScore, ChampionPick } from "@/lib/supabase/types";
 
@@ -17,7 +18,7 @@ interface Props {
   teams: string[];
 }
 
-type View = "crono" | "grupos" | "encerrados";
+type View = "crono" | "grupos" | "encerrados" | "chave";
 
 const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "FINISHED"]);
 
@@ -64,11 +65,11 @@ export default function PalpitesClient({
     try { localStorage.setItem("bolao_view", v); } catch { /* noop */ }
   }
 
-  async function handleSave(gameId: string, home: number, away: number) {
+  async function handleSave(gameId: string, home: number, away: number, advancePick?: "home" | "away" | null) {
     const { data, error } = await supabase
       .from("predictions")
       .upsert(
-        { user_id: userId, game_id: gameId, home_score: home, away_score: away },
+        { user_id: userId, game_id: gameId, home_score: home, away_score: away, advance_pick: advancePick ?? null },
         { onConflict: "user_id,game_id" }
       )
       .select()
@@ -149,6 +150,7 @@ export default function PalpitesClient({
     crono: "Cronológico",
     grupos: "Por grupo",
     encerrados: "Encerrados",
+    chave: "Chave",
   };
 
   return (
@@ -167,7 +169,7 @@ export default function PalpitesClient({
           margin: 0, fontSize: 13.5, color: "var(--bolao-ink-dim)",
           fontFamily: '"Noto Sans", system-ui, sans-serif',
         }}>
-          Fase de grupos · Palpites travam 5 min antes de cada jogo
+          Palpites travam 5 min antes de cada jogo
         </p>
       </div>
 
@@ -184,7 +186,7 @@ export default function PalpitesClient({
           display: "flex", padding: 4, gap: 4, borderRadius: 12,
           background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)",
         }}>
-          {(["crono", "grupos", "encerrados"] as const).map((v) => {
+          {(["crono", "grupos", "chave", "encerrados"] as const).map((v) => {
             const active = view === v;
             return (
               <button
@@ -206,8 +208,19 @@ export default function PalpitesClient({
         </div>
       </div>
 
+      {/* Chave (bracket) view */}
+      {view === "chave" && (
+        <BracketView
+          games={games}
+          odds={odds}
+          predictions={predictions}
+          scores={scores}
+          onSave={handleSave}
+        />
+      )}
+
       {/* Empty state */}
-      {sections.length === 0 && (
+      {view !== "chave" && sections.length === 0 && (
         <div style={{ textAlign: "center", padding: "48px 0", color: "var(--bolao-ink-dim)" }}>
           <p style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px" }}>
             {view === "encerrados" ? "Nenhum jogo encerrado ainda." : "Nenhum jogo pendente."}
@@ -216,7 +229,7 @@ export default function PalpitesClient({
       )}
 
       {/* Sections */}
-      {sections.map((s) => (
+      {view !== "chave" && sections.map((s) => (
         <section key={s.key} style={{ marginBottom: 22 }}>
           {s.kind === "date" ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 2px 12px" }}>

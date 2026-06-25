@@ -6,6 +6,7 @@ import SimuladorPontos from "./SimuladorPontos";
 const PTS_MIN = 1;
 const PTS_MAX = 13;
 const EXACT_BONUS = 5;
+const ADVANCE_BONUS = 3;
 const CHAMPION_BONUS = 20;
 const LOCK_MINUTES = 5;
 const SCALE_PROBS = [0.9, 0.6, 0.4, 0.25, 0.12, 0.04, 0.01];
@@ -287,6 +288,75 @@ export default function RegrasPage() {
               <div style={{ fontSize: 13, lineHeight: 1.55, color: "var(--bolao-ink-dim)", fontFamily: UI }}>{desc}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {divider}
+
+      {/* Knockout stage scoring */}
+      <section>
+        <h2 style={{ margin: "0 0 6px", fontSize: 21, fontWeight: 800, textTransform: "uppercase", fontFamily: DISPLAY }}>Pontuação no Mata-mata</h2>
+        <p style={{ margin: "0 0 16px", fontSize: 14, lineHeight: 1.6, color: "var(--bolao-ink-dim)", fontFamily: UI, maxWidth: "62ch" }}>
+          Nas fases eliminatórias as regras base valem igual, mas há algumas particularidades importantes.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Card: advance pick */}
+          <div style={{ background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)", borderRadius: 16, padding: "18px 17px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{
+                flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+                background: "var(--bolao-lime-soft)", border: "1px solid rgba(173,235,3,0.28)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 16, fontWeight: 800, color: "var(--bolao-lime)", fontFamily: DISPLAY,
+              }}>+{ADVANCE_BONUS}</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, textTransform: "uppercase", fontFamily: DISPLAY, marginBottom: 5 }}>Bônus por acertar o classificado</div>
+                <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: "var(--bolao-ink-dim)", fontFamily: UI, maxWidth: "58ch" }}>
+                  Em cada jogo do mata-mata você também escolhe qual time se classifica. Acertou quem avança? +{ADVANCE_BONUS} pontos — somados ao que você já ganhou pelo resultado e pela cravada.
+                </p>
+                <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.6, color: "var(--bolao-ink-faint)", fontFamily: UI, maxWidth: "58ch" }}>
+                  Se você palpitou um time vencendo (placar diferente), a escolha do classificado já é automática — você leva os +{ADVANCE_BONUS} se acertar o time certo.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card: extra time */}
+          <div style={{ background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)", borderRadius: 16, padding: "18px 17px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{
+                flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+                background: "rgba(247,247,248,0.06)", border: "1px solid var(--bolao-hairline)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 18,
+              }}>⏱</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, textTransform: "uppercase", fontFamily: DISPLAY, marginBottom: 5 }}>Prorrogação</div>
+                <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: "var(--bolao-ink-dim)", fontFamily: UI, maxWidth: "58ch" }}>
+                  Se o jogo for para a prorrogação, o placar que conta é o <span style={{ color: "var(--bolao-ink)", fontWeight: 700, fontFamily: DISPLAY }}>placar final ao término dos 120 minutos</span> — não o placar do tempo normal. A cravada (+{EXACT_BONUS} pts) só vale se você acertou esse placar final.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card: penalties */}
+          <div style={{ background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)", borderRadius: 16, padding: "18px 17px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{
+                flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+                background: "rgba(247,247,248,0.06)", border: "1px solid var(--bolao-hairline)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 18,
+              }}>🥅</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, textTransform: "uppercase", fontFamily: DISPLAY, marginBottom: 5 }}>Pênaltis</div>
+                <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: "var(--bolao-ink-dim)", fontFamily: UI, maxWidth: "58ch" }}>
+                  Se o jogo terminar empatado após a prorrogação e for para os pênaltis, o placar que vale para pontuação é o empate do final dos 120 minutos. Quem apostou em <span style={{ color: "var(--bolao-ink)", fontWeight: 700, fontFamily: DISPLAY }}>empate</span> ganha os pontos pelo resultado — e ainda concorre ao bônus de +{ADVANCE_BONUS} se escolheu o time que venceu nas penalidades.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

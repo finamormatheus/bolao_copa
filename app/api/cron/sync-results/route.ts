@@ -319,7 +319,7 @@ export async function GET(request: Request) {
         .update({ status, ...scoreUpdate })
         .eq("wc26_api_id", game.id)
         .select(
-          "id, stage, match_date, home_team, away_team, home_score, away_score, locked_home_win_prob, locked_draw_prob, locked_away_win_prob"
+          "id, stage, match_date, home_team, away_team, home_score, away_score, locked_home_win_prob, locked_draw_prob, locked_away_win_prob, knockout_winner"
         )
         .single();
 
@@ -358,9 +358,27 @@ export async function GET(request: Request) {
 
       // Calcula pontuações quando jogo termina
       if (status === FINISHED_STATUS && finalHome !== null && finalAway !== null) {
+        // Determina o vencedor do mata-mata (persiste pênaltis via football-data)
+        const isKnockout = dbGame.stage && dbGame.stage !== "Group Stage";
+        let knockoutWinner: "home" | "away" | null =
+          (dbGame.knockout_winner as "home" | "away") ?? null;
+        if (isKnockout && !knockoutWinner) {
+          if (fdMatch?.score.winner === "HOME_TEAM") knockoutWinner = "home";
+          else if (fdMatch?.score.winner === "AWAY_TEAM") knockoutWinner = "away";
+          else if (finalHome > finalAway) knockoutWinner = "home";
+          else if (finalAway > finalHome) knockoutWinner = "away";
+
+          if (knockoutWinner) {
+            await supabase
+              .from("games")
+              .update({ knockout_winner: knockoutWinner })
+              .eq("id", dbGame.id);
+          }
+        }
+
         const { data: predictions } = await supabase
           .from("predictions")
-          .select("user_id, home_score, away_score")
+          .select("user_id, home_score, away_score, advance_pick")
           .eq("game_id", dbGame.id);
 
         if (predictions && predictions.length > 0) {
@@ -376,13 +394,16 @@ export async function GET(request: Request) {
             const result = calculateScore(
               { home: p.home_score, away: p.away_score },
               { home: finalHome, away: finalAway },
-              lockedProbs
+              lockedProbs,
+              p.advance_pick as "home" | "away" | null,
+              knockoutWinner
             );
             return {
               user_id: p.user_id,
               game_id: dbGame.id,
               base_points: result.basePoints,
               odds_bonus: result.exactBonus,
+              advance_bonus: result.advanceBonus,
               breakdown: result.breakdown as unknown as Record<string, boolean>,
               calculated_at: now.toISOString(),
             };

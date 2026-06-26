@@ -120,7 +120,17 @@ export async function GET(request: Request) {
         .lte("match_date", in1hTo.toISOString()),
     ]);
 
-    if (!needs24h?.length && !needs1h?.length) {
+    // Also pick up knockout games confirmed after the last window run (no odds row yet)
+    const { data: existingOdds } = await supabase.from("odds").select("game_id");
+    const oddsGameIds = new Set((existingOdds ?? []).map((r) => r.game_id));
+    const { data: allFutureGames } = await supabase
+      .from("games")
+      .select("id, home_team, away_team, match_date")
+      .eq("status", "NS")
+      .gt("match_date", now.toISOString());
+    const noOddsGames = (allFutureGames ?? []).filter((g) => !oddsGameIds.has(g.id));
+
+    if (!needs24h?.length && !needs1h?.length && !noOddsGames.length) {
       return NextResponse.json({ message: "No odds updates needed", updated: 0 });
     }
 
@@ -135,19 +145,12 @@ export async function GET(request: Request) {
         : Promise.resolve(),
     ]);
 
-    // Busca todos os jogos futuros para atualizar odds de uma vez (a API retorna tudo de qualquer forma)
-    const { data: futureGames } = await supabase
-      .from("games")
-      .select("id, home_team, away_team, match_date")
-      .eq("status", "NS")
-      .gt("match_date", now.toISOString());
-
-    const { updated } = await updateOddsForGames(futureGames ?? [], supabase, now);
+    const { updated } = await updateOddsForGames(allFutureGames ?? [], supabase, now);
 
     return NextResponse.json({
       message: "Odds updated",
       updated,
-      windows: { "24h": needs24h?.length ?? 0, "1h": needs1h?.length ?? 0 },
+      windows: { "24h": needs24h?.length ?? 0, "1h": needs1h?.length ?? 0, noOdds: noOddsGames.length },
     });
   } catch (err) {
     console.error("[update-odds]", err);

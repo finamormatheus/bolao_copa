@@ -7,6 +7,7 @@ import { RankingListHeader, RankingRow, type RankRowEntry } from "@/components/R
 import { LiveRankingRefresher } from "@/components/LiveRankingRefresher";
 import { calculateScore } from "@/lib/scoring/calculator";
 import { translateTeamName } from "@/lib/translations/teams";
+import { PointsEvolutionChart, type UserSeries } from "@/components/PointsEvolutionChart";
 
 interface RankingEntry {
   user_id: string;
@@ -72,7 +73,13 @@ export default async function RankingPage({
         .toISOString().split("T")[0]
     : today;
 
-  const [{ data: scores }, { data: championPicksData }, { data: liveGamesData }] = await Promise.all([
+  const [
+    { data: scores },
+    { data: championPicksData },
+    { data: liveGamesData },
+    { data: chartSnapshots },
+    { data: chartGameScores },
+  ] = await Promise.all([
     supabase
       .from("game_scores")
       .select("user_id, total_points, breakdown")
@@ -86,6 +93,15 @@ export default async function RankingPage({
       .select("id, home_team, away_team, home_score, away_score, status, locked_home_win_prob, locked_draw_prob, locked_away_win_prob")
       .in("status", ["LIVE", "HT"])
       .not("home_score", "is", null),
+    supabase
+      .from("ranking_snapshots")
+      .select("user_id, game_day, points, rank")
+      .eq("group_id", selectedGroupId)
+      .order("game_day", { ascending: true }),
+    supabase
+      .from("game_scores")
+      .select("user_id, game_id, total_points, games(match_date, home_team, away_team, stage)")
+      .in("user_id", groupUserIds.length > 0 ? groupUserIds : [""]),
   ]);
 
   const liveGamesWithScores = liveGamesData ?? [];
@@ -177,6 +193,56 @@ export default async function RankingPage({
 
   const me = ranking.find((r) => r.user_id === currentUserId);
   const myRank = me ? ranking.indexOf(me) + 1 : null;
+
+  // Build chart series
+  const userNameById = Object.fromEntries(
+    Object.values(rankingMap).map(r => [r.user_id, r.display_name])
+  );
+
+  const daySeriesMap = new Map<string, Array<{ game_day: string; points: number; rank: number }>>();
+  for (const snap of chartSnapshots ?? []) {
+    if (!userNameById[snap.user_id]) continue;
+    if (!daySeriesMap.has(snap.user_id)) daySeriesMap.set(snap.user_id, []);
+    daySeriesMap.get(snap.user_id)!.push({ game_day: snap.game_day, points: snap.points, rank: snap.rank });
+  }
+
+  type RawGS = {
+    user_id: string; game_id: string; total_points: number;
+    games: { match_date: string; home_team: string; away_team: string; stage: string } | null;
+  };
+  const sortedGS = ((chartGameScores ?? []) as RawGS[])
+    .filter(gs => gs.games !== null)
+    .sort((a, b) => new Date(a.games!.match_date).getTime() - new Date(b.games!.match_date).getTime());
+
+  const gameSeriesMap = new Map<string, Array<{ game_id: string; label: string; match_date: string; points: number; roundName: string }>>();
+  const runningTotals = new Map<string, number>();
+  for (const gs of sortedGS) {
+    if (!userNameById[gs.user_id]) continue;
+    const next = (runningTotals.get(gs.user_id) ?? 0) + gs.total_points;
+    runningTotals.set(gs.user_id, next);
+    if (!gameSeriesMap.has(gs.user_id)) gameSeriesMap.set(gs.user_id, []);
+    const dateStr = gs.games!.match_date.split("T")[0];
+    const roundName = gs.games!.stage !== "Group Stage"
+      ? ({ "Round of 32": "Round of 32", "Round of 16": "Oitavas de Final", "Quarter-finals": "Quartas de Final", "Semi-finals": "Semifinais", "Final": "Final" }[gs.games!.stage] ?? gs.games!.stage)
+      : dateStr < "2026-06-18" ? "1ª Rodada" : dateStr < "2026-06-24" ? "2ª Rodada" : "3ª Rodada";
+    gameSeriesMap.get(gs.user_id)!.push({
+      game_id: gs.game_id,
+      label: `${gs.games!.home_team.slice(0, 3)} v ${gs.games!.away_team.slice(0, 3)}`,
+      match_date: gs.games!.match_date,
+      points: next,
+      roundName,
+    });
+  }
+
+  const evolutionSeries: UserSeries[] = groupUserIds
+    .filter(id => userNameById[id])
+    .map(id => ({
+      user_id: id,
+      display_name: userNameById[id],
+      isCurrentUser: id === currentUserId,
+      dayPoints: daySeriesMap.get(id) ?? [],
+      gamePoints: gameSeriesMap.get(id) ?? [],
+    }));
 
   const podiumRows = ranking.slice(0, 3) as PodiumEntry[];
   const listRows = ranking.slice(3) as RankRowEntry[];
@@ -337,6 +403,8 @@ export default async function RankingPage({
               </div>
             </>
           )}
+
+          <PointsEvolutionChart series={evolutionSeries} />
         </>
       )}
     </div>

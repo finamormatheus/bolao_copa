@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -205,6 +205,15 @@ export function PointsEvolutionChart({ series }: { series: UserSeries[] }) {
   const [highlightedUser, setHighlightedUser] = useState<string | null>(
     () => series.find(s => s.isCurrentUser)?.user_id ?? null
   );
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(400);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => setContainerWidth(entries[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const data = useMemo(
     () => buildChartData(series, view, yMode),
@@ -244,8 +253,13 @@ export function PointsEvolutionChart({ series }: { series: UserSeries[] }) {
 
   const isHighlighting = highlightedUser !== null;
 
+  // ~38px per label is enough for "DD/MM"; skip ticks so they don't crowd on narrow screens
+  const dayTickInterval = view === "day"
+    ? Math.max(0, Math.ceil(data.length / Math.max(1, Math.floor(containerWidth / 38))) - 1)
+    : 0;
+
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       marginTop: 32,
       borderRadius: "var(--bolao-radius-card)",
       background: "var(--bolao-surface)",
@@ -298,7 +312,7 @@ export function PointsEvolutionChart({ series }: { series: UserSeries[] }) {
             dataKey="label"
             axisLine={false}
             tickLine={false}
-            interval={0}
+            interval={dayTickInterval}
             minTickGap={view === "game" ? 0 : 2}
             height={view === "game" ? 28 : 30}
             ticks={view === "game" ? roundMarkers.map(m => m.xLabel) : undefined}

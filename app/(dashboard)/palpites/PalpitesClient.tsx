@@ -18,7 +18,7 @@ interface Props {
   teams: string[];
 }
 
-type View = "crono" | "grupos" | "encerrados" | "chave";
+type View = "crono" | "encerrados" | "chave";
 
 const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "FINISHED"]);
 
@@ -26,18 +26,6 @@ function isGameFinished(game: Game) {
   return FINISHED_STATUSES.has(game.status);
 }
 
-function groupLetter(groupName: string | null): string {
-  if (!groupName) return "?";
-  const m = groupName.match(/\b([A-L])\b/i);
-  return m ? m[1].toUpperCase() : "?";
-}
-
-const GROUP_COLORS: Record<string, string> = {
-  A: "rgb(1,230,118)", B: "rgb(255,22,68)", C: "rgb(255,145,3)",
-  D: "rgb(48,79,254)", E: "rgb(98,0,234)", F: "rgb(199,255,2)",
-  G: "rgb(240,98,146)", H: "rgb(100,255,218)", I: "rgb(171,71,188)",
-  J: "rgb(0,120,136)", K: "rgb(255,61,0)", L: "rgb(33,150,243)",
-};
 
 export default function PalpitesClient({
   userId,
@@ -98,9 +86,7 @@ export default function PalpitesClient({
   );
 
   // Build sections based on view
-  type Section =
-    | { kind: "date"; key: string; label: string; items: Game[] }
-    | { kind: "group"; key: string; group: string; items: Game[] };
+  type Section = { kind: "date"; key: string; label: string; items: Game[] };
 
   let sections: Section[] = [];
 
@@ -116,19 +102,6 @@ export default function PalpitesClient({
     }
     sections = Array.from(map.entries()).map(([label, items]) => ({
       kind: "date", key: label, label, items,
-    }));
-  } else if (view === "grupos") {
-    const activeGames = sorted.filter((g) => !isGameFinished(g));
-    const map = new Map<string, Game[]>();
-    for (const g of activeGames) {
-      const letter = groupLetter(g.group_name);
-      if (letter === "?") continue;
-      if (!map.has(letter)) map.set(letter, []);
-      map.get(letter)!.push(g);
-    }
-    const sorted_groups = Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-    sections = sorted_groups.map(([group, items]) => ({
-      kind: "group", key: group, group, items,
     }));
   } else {
     // encerrados — reverse chronological, grouped by date
@@ -148,7 +121,6 @@ export default function PalpitesClient({
 
   const VIEW_LABELS: Record<View, string> = {
     crono: "Cronológico",
-    grupos: "Por grupo",
     encerrados: "Encerrados",
     chave: "Chave",
   };
@@ -191,7 +163,7 @@ export default function PalpitesClient({
           display: "flex", flexWrap: "wrap", padding: 4, gap: 4, borderRadius: 12,
           background: "var(--bolao-surface)", border: "1px solid var(--bolao-hairline)",
         }}>
-          {(["crono", "grupos", "chave", "encerrados"] as const).map((v) => {
+          {(["crono", "chave", "encerrados"] as const).map((v) => {
             const active = view === v;
             return (
               <button
@@ -237,35 +209,14 @@ export default function PalpitesClient({
       {/* Sections */}
       {view !== "chave" && sections.map((s) => (
         <section key={s.key} style={{ marginBottom: 22 }}>
-          {s.kind === "date" ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 2px 12px" }}>
-              <span style={{
-                fontFamily: '"FWC2026", system-ui, sans-serif',
-                fontSize: 12.5, fontWeight: 800, color: "var(--bolao-ink-dim)",
-                letterSpacing: "0.08em", whiteSpace: "nowrap", textTransform: "uppercase",
-              }}>{s.label}</span>
-              <span style={{ flex: 1, height: 1, background: "var(--bolao-hairline)" }} />
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 2px 12px" }}>
-              <span style={{
-                background: GROUP_COLORS[s.group] ?? "rgba(247,247,248,0.2)",
-                color: "var(--bolao-ink-dark)",
-                fontFamily: '"FWC2026", system-ui, sans-serif',
-                fontWeight: 800, fontSize: 13, lineHeight: 1,
-                padding: "6px 12px 5px", borderRadius: 999,
-                letterSpacing: "0.02em", whiteSpace: "nowrap", textTransform: "uppercase",
-              }}>Grupo {s.group}</span>
-              <span style={{
-                fontSize: 12, color: "var(--bolao-ink-faint)",
-                fontFamily: '"Noto Sans", system-ui, sans-serif',
-                whiteSpace: "nowrap",
-              }}>
-                {s.items.length} {s.items.length === 1 ? "jogo" : "jogos"}
-              </span>
-              <span style={{ flex: 1, height: 1, background: "var(--bolao-hairline)" }} />
-            </div>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 2px 12px" }}>
+            <span style={{
+              fontFamily: '"FWC2026", system-ui, sans-serif',
+              fontSize: 12.5, fontWeight: 800, color: "var(--bolao-ink-dim)",
+              letterSpacing: "0.08em", whiteSpace: "nowrap", textTransform: "uppercase",
+            }}>{s.label}</span>
+            <span style={{ flex: 1, height: 1, background: "var(--bolao-hairline)" }} />
+          </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {s.items.map((game) => (
@@ -276,7 +227,7 @@ export default function PalpitesClient({
                 prediction={predictions.find((p) => p.game_id === game.id) ?? null}
                 score={scores.find((sc) => sc.game_id === game.id) ?? null}
                 onSave={handleSave}
-                showDate={view === "grupos"}
+                showDate={false}
               />
             ))}
           </div>

@@ -71,8 +71,13 @@ interface BracketCardProps {
   onClick: () => void;
 }
 
+const LIVE_STATUSES = new Set(["LIVE", "1H", "HT", "2H", "ET", "BT", "P", "PAUSED"]);
+
 function BracketCard({ game, prediction, score, style, onClick }: BracketCardProps) {
   const isFinished = FINISHED_STATUSES.has(game.status);
+  const isLive = LIVE_STATUSES.has(game.status);
+  const isLocked = !isLive && !isFinished &&
+    new Date(game.match_date).getTime() - Date.now() <= 5 * 60_000;
   const isTBD = game.home_team === "TBD" || game.away_team === "TBD";
   const isPen = game.status === "PEN";
 
@@ -176,6 +181,15 @@ function BracketCard({ game, prediction, score, style, onClick }: BracketCardPro
         }}>
           {dateFmt} · {timeFmt}
         </span>
+        {isLive && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: "var(--bolao-red)", letterSpacing: "0.03em" }}>
+            <span style={{ width: 5, height: 5, borderRadius: 99, background: "var(--bolao-red)", display: "inline-block", animation: "livePulse 1.1s ease-in-out infinite", flexShrink: 0 }} />
+            Ao vivo
+          </span>
+        )}
+        {isLocked && !isLive && (
+          <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: "var(--bolao-ink-faint)", letterSpacing: "0.03em" }}>🔒 Travado</span>
+        )}
         {isFinished && (
           <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
             {isPen && (
@@ -184,22 +198,25 @@ function BracketCard({ game, prediction, score, style, onClick }: BracketCardPro
             <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", color: "var(--bolao-ink-faint)", letterSpacing: "0.03em" }}>Encerrado</span>
           </span>
         )}
-        {/* Exact score badge */}
-        {isFinished && score && (score.breakdown as { exact?: boolean } | null)?.exact && (
-          <span style={{
-            position: "absolute", bottom: 6, right: 8,
-            width: 18, height: 18, borderRadius: 99,
-            background: "var(--bolao-green-win)", border: "2px solid var(--bolao-surface)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 9, fontWeight: 800, color: "#fff",
-          }}>✓</span>
-        )}
       </div>
 
-      {/* Teams */}
-      <div style={{ padding: "6px 10px 6px", display: "flex", flexDirection: "column", gap: 4 }}>
+      {/* Teams — right padding always reserves space for the score indicator */}
+      <div style={{ position: "relative", padding: "6px 20px 6px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
         <TeamRow side="home" />
         <TeamRow side="away" />
+        {isFinished && prediction && (() => {
+          const isExact = !!(score?.breakdown as { exact?: boolean } | null)?.exact;
+          return (
+            <span style={{
+              position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+              width: 18, height: 18, borderRadius: 99,
+              background: isExact ? "var(--bolao-green-win)" : "var(--bolao-red)",
+              border: "2px solid var(--bolao-surface)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 9, fontWeight: 800, color: "#fff",
+            }}>{isExact ? "✓" : "✕"}</span>
+          );
+        })()}
       </div>
     </div>
   );

@@ -285,6 +285,7 @@ export default function GameModal({ game, odds, prediction, score, onSave, onClo
         <div style={{
           background: "var(--bolao-surface-2)", padding: "12px 16px",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+          borderRadius: "22px 22px 0 0",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
             <span style={{ fontFamily: '"FWC2026", system-ui, sans-serif', fontSize: 12, fontWeight: 800, color: "var(--bolao-ink-dim)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>

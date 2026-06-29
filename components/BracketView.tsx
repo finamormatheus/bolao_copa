@@ -124,6 +124,7 @@ function BracketCard({ game, prediction, score, style, onClick }: BracketCardPro
               border: "2px solid var(--bolao-surface)",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 7, fontWeight: 800, color: "#fff",
+              lineHeight: 1, fontFamily: "system-ui, sans-serif",
             }}>{advCorrect ? "✓" : "✕"}</span>
           )}
         </span>
@@ -214,6 +215,7 @@ function BracketCard({ game, prediction, score, style, onClick }: BracketCardPro
               border: "2px solid var(--bolao-surface)",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 9, fontWeight: 800, color: "#fff",
+              lineHeight: 1, fontFamily: "system-ui, sans-serif",
             }}>{isExact ? "✓" : "✕"}</span>
           );
         })()}

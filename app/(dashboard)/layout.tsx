@@ -121,7 +121,7 @@ export default async function DashboardLayout({
   return (
     <div className="bolao-app-bg" style={{ minHeight: "100vh", position: "relative" }}>
       {headerEl}
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "22px 18px 80px", position: "relative", zIndex: 1 }}>
+      <main style={{ maxWidth: 760, margin: "0 auto", padding: "22px 18px 80px", position: "relative" }}>
         {children}
       </main>
     </div>

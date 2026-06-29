@@ -118,7 +118,7 @@ function BracketCard({ game, prediction, score, style, onClick }: BracketCardPro
           {/* Advance badge */}
           {isFinished && pickedThis && (advCorrect || advWrong) && (
             <span style={{
-              position: "absolute", bottom: -3, right: -4,
+              position: "absolute", bottom: 2, right: -6,
               width: 14, height: 14, borderRadius: 99,
               background: advCorrect ? "var(--bolao-green-win)" : "var(--bolao-red)",
               border: "2px solid var(--bolao-surface)",

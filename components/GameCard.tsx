@@ -626,7 +626,7 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
           )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <span style={{
-              fontSize: 12.5, color: "var(--bolao-ink-dim)", whiteSpace: "nowrap",
+              fontSize: 12.5, color: "var(--bolao-ink-dim)",
               fontFamily: '"Noto Sans", system-ui, sans-serif',
             }}>
               Seu palpite{" "}
@@ -637,33 +637,22 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
                 {prediction?.home_score != null
                   ? `${prediction.home_score}–${prediction.away_score}` : "—"}
               </span>
+              {isKnockout && prediction?.advance_pick && (
+                <span style={{ color: "var(--bolao-ink-faint)", fontFamily: '"Noto Sans", system-ui, sans-serif', fontSize: 12 }}>
+                  {" · "}
+                  {prediction.advance_pick === "home"
+                    ? translateTeamName(game.home_team)
+                    : translateTeamName(game.away_team)} avança
+                </span>
+              )}
             </span>
             {isFinished && resultPts !== null && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                {isExact && (
-                  <span style={{
-                    fontFamily: '"FWC2026", system-ui, sans-serif',
-                    fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
-                    color: "var(--bolao-green-win)", letterSpacing: "0.04em",
-                  }}>🎯 Cravou!</span>
-                )}
-                {isKnockout && prediction?.advance_pick != null && (
-                  <span style={{
-                    fontFamily: '"FWC2026", system-ui, sans-serif',
-                    fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
-                    color: isCorrectAdvance ? "var(--bolao-lime)" : "var(--bolao-red)",
-                    letterSpacing: "0.04em",
-                  }}>
-                    {isCorrectAdvance ? "✓ Avança" : "✕ Avança"}
-                  </span>
-                )}
-                <span style={{
-                  fontFamily: '"FWC2026", system-ui, sans-serif',
-                  fontSize: 15, fontWeight: 800,
-                  color: resultPts > 0 ? "var(--bolao-lime)" : "var(--bolao-ink-faint)",
-                }}>
-                  {resultPts > 0 ? `+${resultPts} pts` : "0 pts"}
-                </span>
+              <span style={{
+                fontFamily: '"FWC2026", system-ui, sans-serif',
+                fontSize: 15, fontWeight: 800, whiteSpace: "nowrap",
+                color: resultPts > 0 ? "var(--bolao-lime)" : "var(--bolao-ink-faint)",
+              }}>
+                {resultPts > 0 ? `+${resultPts} pts` : "0 pts"}
               </span>
             )}
             {isLive && (
@@ -674,6 +663,34 @@ export default function GameCard({ game, odds, prediction, score, onSave, groupS
               }}>Em jogo</span>
             )}
           </div>
+          {isFinished && (isExact || (isKnockout && prediction?.advance_pick != null)) && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {isExact && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontFamily: '"FWC2026", system-ui, sans-serif',
+                  fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
+                  color: "var(--bolao-green-win)",
+                  background: "rgba(1,230,118,0.08)",
+                  border: "1px solid rgba(1,230,118,0.4)",
+                  padding: "6px 12px 5px", borderRadius: 999,
+                }}>🎯 Placar exato</span>
+              )}
+              {isKnockout && prediction?.advance_pick != null && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontFamily: '"FWC2026", system-ui, sans-serif',
+                  fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
+                  color: isCorrectAdvance ? "var(--bolao-lime)" : "var(--bolao-red)",
+                  background: isCorrectAdvance ? "rgba(1,230,118,0.08)" : "rgba(255,22,68,0.08)",
+                  border: isCorrectAdvance ? "1px solid rgba(1,230,118,0.4)" : "1px solid rgba(255,22,68,0.4)",
+                  padding: "6px 12px 5px", borderRadius: 999,
+                }}>
+                  {isCorrectAdvance ? "✓ Quem avança" : "✕ Quem avança"}
+                </span>
+              )}
+            </div>
+          )}
           </>
         )}
 

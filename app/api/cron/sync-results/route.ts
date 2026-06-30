@@ -294,8 +294,19 @@ export async function GET(request: Request) {
       // Busca placar do football-data para este jogo (se disponível)
       const fdKey = `${normTeam(game.home_team_name_en)}|${normTeam(game.away_team_name_en)}`;
       const fdMatch = fdByKey.get(fdKey);
-      const fdHome = fdMatch?.score.fullTime.home ?? null;
-      const fdAway = fdMatch?.score.fullTime.away ?? null;
+      // Use regularTime + extraTime instead of fullTime: when duration=PENALTY_SHOOTOUT
+      // football-data includes penalty goals in fullTime (e.g. 1+2 penalties = 3), which
+      // inflates the score. We only care about goals scored during play.
+      const fdHome = fdMatch
+        ? (fdMatch.score.regularTime?.home != null
+            ? fdMatch.score.regularTime.home + (fdMatch.score.extraTime?.home ?? 0)
+            : fdMatch.score.fullTime.home)
+        : null;
+      const fdAway = fdMatch
+        ? (fdMatch.score.regularTime?.away != null
+            ? fdMatch.score.regularTime.away + (fdMatch.score.extraTime?.away ?? 0)
+            : fdMatch.score.fullTime.away)
+        : null;
 
       const wc26Status = mapStatus(game.time_elapsed);
       // When wc26 says not started but football-data has the match live, trust football-data for status

@@ -89,7 +89,7 @@ BEGIN
   -- Usa http_sync_results() para disparar com offset de 20s dentro do minuto.
   PERFORM cron.schedule(
     'sync_results_fast',
-    '* * * 6,7 *',
+    '*/2 * * 6,7 *',
     $job$ SELECT public.http_sync_results() $job$
   );
 

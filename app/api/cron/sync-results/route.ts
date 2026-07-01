@@ -222,6 +222,7 @@ export async function GET(request: Request) {
       hasUnscored;
     // Once-per-day full sync at 6am UTC to recalculate scores for games with corrected results
     const isDailyRecalc = now.getUTCHours() === 6 && now.getUTCMinutes() < 5;
+    const isForced = new URL(request.url).searchParams.get("force") === "1";
 
     // Check for a pending delayed fixture sync (set when a knockout game ends)
     let didDelayedFixtureSync = false;
@@ -241,7 +242,7 @@ export async function GET(request: Request) {
       }
     }
 
-    if (!hasActivity && !isDailyRecalc) {
+    if (!hasActivity && !isDailyRecalc && !isForced) {
       return NextResponse.json({ message: "Nothing to sync", skipped: true, ...(didDelayedFixtureSync && { fixturesSynced: true }) });
     }
 
@@ -250,17 +251,23 @@ export async function GET(request: Request) {
     // Buscamos jogos de hoje para pegar partidas que a wc26 marca erroneamente
     // como "notstarted" mas que a FD já reporta como FINISHED.
     // allSettled garante que uma falha em uma fonte não aborta o sync.
+    //
+    // Football-data é chamado a cada 4 min (todo tick de número par de minutos UTC)
+    // para reduzir custo de CPU. Sempre chamamos em full syncs porque esses caminhos
+    // precisam do football-data para cross-check de status e vencedor de mata-mata.
+    const preFdNeedsFullSync = isDailyRecalc || (justStarted?.length ?? 0) > 0 || hasUnscored;
+    const shouldFetchFD = preFdNeedsFullSync || now.getUTCMinutes() % 4 === 0;
     const todayUtc = now.toISOString().split("T")[0];
     const [wc26Result, fdLiveResult, fdTodayResult] = await Promise.allSettled([
       fetchAllGames(),
-      fetchLiveMatches(),
-      fetchMatchesByDate(todayUtc),
+      shouldFetchFD ? fetchLiveMatches() : Promise.resolve([] as FDMatch[]),
+      shouldFetchFD ? fetchMatchesByDate(todayUtc) : Promise.resolve([] as FDMatch[]),
     ]);
 
-    if (fdLiveResult.status === "rejected") {
+    if (shouldFetchFD && fdLiveResult.status === "rejected") {
       console.warn("[sync-results] football-data.org live fetch failed:", fdLiveResult.reason);
     }
-    if (fdTodayResult.status === "rejected") {
+    if (shouldFetchFD && fdTodayResult.status === "rejected") {
       console.warn("[sync-results] football-data.org today fetch failed:", fdTodayResult.reason);
     }
     // Merge: hoje sobrescreve ao vivo (status mais atualizado); dedup por ID
@@ -280,7 +287,7 @@ export async function GET(request: Request) {
     const allGames = wc26Result.value;
 
     const needsFullSync =
-      isDailyRecalc || (justStarted?.length ?? 0) > 0 || hasUnscored;
+      isDailyRecalc || isForced || (justStarted?.length ?? 0) > 0 || hasUnscored;
 
     // Se só há jogos ao vivo confirmados, filtra em memória (evita processar 104 rows desnecessariamente)
     const games = needsFullSync

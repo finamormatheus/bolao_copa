@@ -220,10 +220,29 @@ export async function GET(request: Request) {
       (liveGames?.length ?? 0) > 0 ||
       (justStarted?.length ?? 0) > 0 ||
       hasUnscored;
-    const isTopOfHour = now.getMinutes() < 2;
+    // Once-per-day full sync at 6am UTC to recalculate scores for games with corrected results
+    const isDailyRecalc = now.getUTCHours() === 6 && now.getUTCMinutes() < 5;
 
-    if (!hasActivity && !isTopOfHour) {
-      return NextResponse.json({ message: "Nothing to sync", skipped: true });
+    // Check for a pending delayed fixture sync (set when a knockout game ends)
+    let didDelayedFixtureSync = false;
+    const { data: pendingFixtureSync } = await (supabase as any)
+      .from("cron_config")
+      .select("value")
+      .eq("key", "fixtures_sync_after")
+      .maybeSingle();
+
+    if (pendingFixtureSync && new Date(pendingFixtureSync.value) <= now) {
+      await (supabase as any).from("cron_config").delete().eq("key", "fixtures_sync_after");
+      try {
+        await syncFixtures();
+        didDelayedFixtureSync = true;
+      } catch (err) {
+        console.error("[sync-results] delayed fixture sync failed:", err);
+      }
+    }
+
+    if (!hasActivity && !isDailyRecalc) {
+      return NextResponse.json({ message: "Nothing to sync", skipped: true, ...(didDelayedFixtureSync && { fixturesSynced: true }) });
     }
 
     // ── Busca jogos de ambas as APIs em paralelo ──────────────────────────────
@@ -261,7 +280,7 @@ export async function GET(request: Request) {
     const allGames = wc26Result.value;
 
     const needsFullSync =
-      isTopOfHour || (justStarted?.length ?? 0) > 0 || hasUnscored;
+      isDailyRecalc || (justStarted?.length ?? 0) > 0 || hasUnscored;
 
     // Se só há jogos ao vivo confirmados, filtra em memória (evita processar 104 rows desnecessariamente)
     const games = needsFullSync
@@ -426,7 +445,16 @@ export async function GET(request: Request) {
 
           if (!error) {
             scored += scoreRows.length;
-            shouldSyncFixtures = true;
+            const isKnockout = dbGame.stage && dbGame.stage !== "Group Stage";
+            if (isKnockout) {
+              // Delay fixture sync 10 min to give the API time to populate the next-round matchup
+              const syncAfter = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+              await (supabase as any)
+                .from("cron_config")
+                .upsert({ key: "fixtures_sync_after", value: syncAfter }, { onConflict: "key" });
+            } else {
+              shouldSyncFixtures = true;
+            }
             // UTC-5 offset: games up to 2am Brasília (BRT=UTC-3) are attributed to the previous calendar day
             const kickoffUtc5 = new Date(new Date(dbGame.match_date).getTime() - 5 * 60 * 60 * 1000);
             scoredGameDays.add(kickoffUtc5.toISOString().split("T")[0]);
@@ -466,24 +494,6 @@ export async function GET(request: Request) {
     // Snapshots from games scored in this run
     for (const gameDay of scoredGameDays) {
       await saveRankingSnapshots(supabase, gameDay);
-    }
-
-    // On full syncs (top-of-hour or cold start), also snapshot all FT game days
-    // so the table stays up to date even when no new scores were computed.
-    if (needsFullSync && scoredGameDays.size === 0) {
-      const { data: ftGames } = await supabase
-        .from("games")
-        .select("match_date")
-        .eq("status", "FT");
-      const ftGameDays = new Set(
-        (ftGames ?? []).map((g) => {
-          const kickoffUtc5 = new Date(new Date(g.match_date).getTime() - 5 * 60 * 60 * 1000);
-          return kickoffUtc5.toISOString().split("T")[0];
-        })
-      );
-      for (const gameDay of ftGameDays) {
-        await saveRankingSnapshots(supabase, gameDay);
-      }
     }
 
     let fixturesSynced: number | undefined;
